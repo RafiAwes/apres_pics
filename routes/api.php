@@ -3,7 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PageController;
-use App\Http\Controllers\Api\{AuthController, UserController};
+use App\Http\Controllers\Api\{AuthController, ProfileController, UserController};
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -24,6 +24,12 @@ Route::group(['controller' => PageController::class], function () {
     Route::get('/page/{key}', 'PageShow');
     Route::get('/faqs', 'index');
     
+});
+
+Route::group(['middleware' => ['auth:api']], function () {
+    Route::group(['controller' => ProfileController::class], function () {
+        Route::post('/update-profile', 'updateProfile');
+    });
 });
 
 Route::group(['prefix' => 'admin', 'middleware' => ['auth:api','role:admin']], function () {

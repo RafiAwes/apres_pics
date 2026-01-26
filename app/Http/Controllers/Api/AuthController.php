@@ -181,7 +181,6 @@ class AuthController extends Controller
         if (!$user) {
             return $this->errorResponse('User not authenticated.', 401);
         }
-
         // Verify current password
         if (!Hash::check($data['current_password'], $user->password)) {
             return $this->errorResponse('Current password is incorrect.', 400);
