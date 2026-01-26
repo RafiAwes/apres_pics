@@ -2,13 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\{Auth, Hash, Validator};
-use Illuminate\Validation\ValidationException;
 use App\Models\User;
+use Illuminate\Http\Request;
 use App\Traits\ApiResponseTraits;
 use App\Http\Controllers\Controller;
 use App\Services\VerificationService;
+use Illuminate\Validation\ValidationException;
+use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
+use Illuminate\Support\Facades\{Auth, Hash, Validator};
 
 class AuthController extends Controller
 {
@@ -160,6 +161,19 @@ class AuthController extends Controller
         return $this->RespondWithToken($token, $user);
     }
 
+    public function logout()
+    {
+        JWTAuth::invalidate(JWTAuth::getToken());
+
+        return $this->successResponse(null, 'Successfully logged out.', 200);
+    }
+    
+    
+    
+    
+    
+    
+    // private functions 
     private function RespondWithToken($token, $user)
     {
         return $this->successResponse([
