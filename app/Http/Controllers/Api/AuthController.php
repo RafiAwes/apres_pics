@@ -167,6 +167,37 @@ class AuthController extends Controller
 
         return $this->successResponse(null, 'Successfully logged out.', 200);
     }
+
+    public function changePassword(Request $request)
+    {
+        $data = $request->validate([
+            'current_password' => 'required|string|min:8',
+            'password' => 'required|string|min:8|confirmed',
+            'password_confirmation' => 'required|string|min:8',
+        ]);
+
+        $user = Auth::guard('api')->user();
+
+        if (!$user) {
+            return $this->errorResponse('User not authenticated.', 401);
+        }
+
+        // Verify current password
+        if (!Hash::check($data['current_password'], $user->password)) {
+            return $this->errorResponse('Current password is incorrect.', 400);
+        }
+
+        // Check if new password is different from current
+        if (Hash::check($data['password'], $user->password)) {
+            return $this->errorResponse('New password must be different from current password.', 400);
+        }
+
+        // Update password
+        $user->password = Hash::make($data['password']);
+        $user->save();
+
+        return $this->successResponse(null, 'Password changed successfully.', 200);
+    }
     
     
     
