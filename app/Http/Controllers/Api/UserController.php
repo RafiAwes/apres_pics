@@ -44,7 +44,7 @@ class UserController extends Controller
      public function banUser(Request $request, User $user)
     {
         $data = $request->validate([
-            'type' => 'required|in:ban_permanently,ban_for_one_week,ban_for_one_month,ban_for_one_year,unban',
+            'type' => 'required|in:permanently,week,month,year,unban',
             'reason' => 'nullable|string|max:255',
         ]);
 
@@ -52,16 +52,16 @@ class UserController extends Controller
         $bannedUntil = null;
 
         switch ($banType) {
-            case 'ban_permanently':
+            case 'permanently':
                 $bannedUntil = null;
                 break;
-            case 'ban_for_one_week':
+            case 'week':
                 $bannedUntil = Carbon::now()->addWeek();
                 break;
-            case 'ban_for_one_month':
+            case 'month':
                 $bannedUntil = Carbon::now()->addMonth();
                 break;
-            case 'ban_for_one_year':
+            case 'year':
                 $bannedUntil = Carbon::now()->addYear();
                 break;
             case 'unban':
@@ -72,7 +72,7 @@ class UserController extends Controller
 
         $user->update([
             'ban_type' => $banType,
-            'banned_until' => $bannedUntil,
+            'ban_expires_at' => $bannedUntil,
             'ban_reason' => $data['reason'] ?? null,
         ]);
 
@@ -88,7 +88,7 @@ class UserController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
                 'ban_type' => $user->ban_type,
-                'banned_until' => $user->banned_until,
+                'ban_expires_at' => $user->ban_expires_at,
                 'ban_reason' => $user->ban_reason,
             ],
         ]);
