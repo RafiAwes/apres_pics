@@ -2,16 +2,16 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\{Auth, Hash};
-use App\Traits\ImageTrait;
+use App\Models\User;
+use App\Http\Controllers\Controller;
+use App\Traits\{ApiResponseTraits, ImageTrait};
 
 class ProfileController extends Controller
 {
-    use ImageTrait;
+    use ImageTrait, ApiResponseTraits;
     public function updateProfile(Request $request)
     {
         $user = Auth::user();
@@ -33,8 +33,8 @@ class ProfileController extends Controller
                 $user->name = $request->name;
                 }
 
-                if ($request->filled('phone_number')) {
-                    $user->phone_number = $request->phone_number;
+                if ($request->filled('contact_number')) {
+                    $user->contact_number = $request->contact_number;
                 }
 
                 if ($request->filled('address')) {
@@ -47,22 +47,11 @@ class ProfileController extends Controller
                 }
             }
 
-            
-
             $user->save();
 
-            return response()->json([
-                'status' => true,
-                'message' => 'Profile info updated successfully',
-                'data' => $user,
-            ], 200);
-
+        return $this->successResponse($user, 'Profile info updated successfully', 200);
         } catch (\Exception $e) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Failed to update profile info',
-                'error' => $e->getMessage(),
-            ], 500);
+            return $this->errorResponse('Failed to update profile info', 500, $e->getMessage() .' '. $e->getLine());
         }
     }
 
@@ -79,7 +68,7 @@ class ProfileController extends Controller
 
         try {
             // 2. Upload new avatar
-            $imagePath = $this->uploadAvatar($request, 'avatar', 'uploads/avatars');
+            $imagePath = $this->uploadAvatar($request, 'avatar', 'images/user');
 
             // 3. Delete old avatar if exists
             if ($user->avatar) {
@@ -89,18 +78,10 @@ class ProfileController extends Controller
             // 4. Update user record
             $user->update(['avatar' => $imagePath]);
 
-            return response()->json([
-                'status' => true,
-                'message' => 'Avatar updated successfully',
-                'data' => $user,
-            ], 200);
+            return $this->successResponse($user,'Avatar updated successfully.', 200);
 
         } catch (\Exception $e) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Failed to update avatar',
-                'error' => $e->getMessage(),
-            ], 500);
+            return $this->errorResponse('Failed to update avatar', 500, $e->getMessage() .' '. $e->getLine());  
         }
     }
 }

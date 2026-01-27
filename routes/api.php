@@ -29,6 +29,7 @@ Route::group(['controller' => PageController::class], function () {
 Route::group(['middleware' => ['auth:api']], function () {
     Route::group(['controller' => ProfileController::class], function () {
         Route::post('/update-profile', 'updateProfile');
+        Route::post('/update-avatar','UpdateAvatar');
     });
 });
 
