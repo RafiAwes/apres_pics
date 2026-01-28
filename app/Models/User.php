@@ -3,15 +3,19 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
+
+use Laravel\Cashier\Billable;
+use App\Traits\ApiResponseTraits;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Notifications\Notifiable;
 use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 
 class User extends Authenticatable implements JWTSubject
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, Billable, ApiResponseTraits;
 
     /**
      * The attributes that are mass assignable.
@@ -89,4 +93,46 @@ class User extends Authenticatable implements JWTSubject
             return url('images/user/default.jpg');
         }
     }
+
+    public function subscription()
+    {
+        return $this->hasOne(Subscription::class)->latestOfMany();
+    }
+
+    public function hasActiveSubscription()
+    {
+        $subscription = $this->subscription;
+
+        if ($subscription && $subscription->status === 'active' && $subscription->ends_at >= now()->toDateString()) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public function hasEventAccess($eventId)
+    {
+        return DB::table('event_access')
+            ->where('user_id', $this->id)
+            ->where('event_id', $eventId)
+            ->exists();
+    }
+
+    public function eventsCreated()
+    {
+        return $this->hasMany(Event::class, 'user_id');
+    }
+
+    public function subscriptions()
+    {
+        return $this->hasOne(Subscription::class);
+    }
+
+    public function hasActiveMonthlySubscription()
+    {
+        // 'default' is the name we will give the subscription
+        return $this->subscribed('default'); 
+    }
+
+
 }
