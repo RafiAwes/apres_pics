@@ -152,12 +152,30 @@ class AuthController extends Controller
         }
 
         $user = Auth::guard('api')->user();
+        
+        // Check if user is banned and ban hasn't expired
+        if ($user->ban_expires_at && $user->ban_expires_at->isFuture()) {
+            Auth::guard('api')->logout();
+            return $this->errorResponse(
+                'Your account is banned until ' . $user->ban_expires_at->toDateTimeString() . '. Reason: ' . $user->ban_reason, 
+                403
+            );
+        }
+        
+        // If ban has expired, clear the ban
+        if ($user->ban_expires_at && $user->ban_expires_at->isPast()) {
+            $user->update([
+                'ban_type' => null,
+                'ban_expires_at' => null,
+                'ban_reason' => null,
+            ]);
+        }
 
-        if(!$user->email_verified_at)
-            {
-                Auth::guard('api')->logout();
-                return $this->errorResponse('Email is not verified. Please verify your email before logging in.', 403);
-            }
+        if (!$user->email_verified_at) {
+            Auth::guard('api')->logout();
+            return $this->errorResponse('Email is not verified. Please verify your email before logging in.', 403);
+        }
+        
         return $this->RespondWithToken($token, $user);
     }
 

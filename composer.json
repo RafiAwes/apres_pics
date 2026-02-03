@@ -10,6 +10,8 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "google/apiclient": "^2.19",
+        "google/cloud-vision": "^2.1",
         "laravel/cashier": "^16.2",
         "laravel/framework": "^12.0",
         "laravel/sanctum": "^4.0",

@@ -2,8 +2,8 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\PageController;
-use App\Http\Controllers\Api\{AuthController, ProfileController, UserController};
+use App\Http\Controllers\Api\{AdminController, AuthController, ProfileController, UserController};
+use App\Http\Controllers\{EventController, PageController};
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -44,4 +44,17 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth:api','role:admin']], f
         Route::put('/faqs/{id}', 'update');     
         Route::delete('/faqs/{id}', 'destroy');
     });
+    Route::group(['controller' => AdminController::class], function () {
+        Route::get('/dashboard-stats', 'dashboardStats');
+    });
+});
+
+Route::group(['prefix' => 'users', 'middleware' => ['auth:api', 'role:user']], function () {
+    Route::get('/events', [EventController::class, 'events']);
+    Route::post('/events', [EventController::class, 'createEvent']);
+    Route::put('/events/{id}', [EventController::class, 'updateEvent']);
+    Route::delete('/events/{id}', [EventController::class, 'deleteEvent']);
+    Route::post('/events/content', [EventController::class, 'UploadContent']);
+    Route::delete('/events/content/{id}', [EventController::class, 'deleteContent']);
+    Route::get('/events/contents/{event}', [EventController::class, 'eventContents']);
 });

@@ -61,6 +61,8 @@ class User extends Authenticatable implements JWTSubject
     {
         return [
             'email_verified_at' => 'datetime',
+            'otp_expires_at' => 'datetime',
+            'ban_expires_at' => 'datetime',
             'password' => 'hashed',
         ];
     }

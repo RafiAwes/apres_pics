@@ -5,7 +5,7 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Traits\ApiResponseTraits; // Use your trait for consistent errors!
+use App\Traits\ApiResponseTraits; 
 
 class CheckSubscription
 {
