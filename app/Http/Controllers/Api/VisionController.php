@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Services\GoogleVisionService;
 use App\Models\EventContents;
 use App\Traits\ApiResponseTraits;
+use Illuminate\Support\Facades\Storage;
 
 class VisionController extends Controller
 {
@@ -26,7 +27,8 @@ class VisionController extends Controller
             'event_id' => 'required|exists:events,id',
         ]);
 
-        $selfiePath = $request->file('selfie')->getRealPath();
+        $selfieUploadPath = $request->file('selfie')->store('temp/selfies', 'public');
+        $selfiePath = storage_path('app/public/'.$selfieUploadPath);
         $selfieLandmarks = $this->vision->getFaceLandmarks($selfiePath);
 
         if (!$selfieLandmarks) {
@@ -35,7 +37,7 @@ class VisionController extends Controller
 
         $photos  = EventContents::where('event_id', $request->event_id)->get();
 
-        $mathches = [];
+        $matches = [];
 
         foreach ($photos as $photo) {
             if ($photo->landmarks_json) {
@@ -43,18 +45,29 @@ class VisionController extends Controller
             }
 
             else{
-                $photoLandmarks = $this->vision->getFaceLandmarks($photo->file_path);
+                $rawImagePath = $photo->getRawOriginal('image');
+                $imagePath = $rawImagePath;
+
+                if ($rawImagePath && !preg_match('#^https?://#i', $rawImagePath)) {
+                    $imagePath = public_path($rawImagePath);
+                }
+
+                $photoLandmarks = $this->vision->getFaceLandmarks($imagePath ?? $photo->image);
                 if ($photoLandmarks) {
                     $photo->landmarks_json = json_encode($photoLandmarks);
                     $photo->save();
                 }
             }
 
+            if (!$photoLandmarks) {
+                continue;
+            }
+
             $similarityScore = $this->vision->compareFaces($selfieLandmarks, $photoLandmarks);
 
             if ($similarityScore < 50) {
                 $matches[] = [
-                    'url' => $photo->url,
+                    'url' => $photo->image,
                     'score' => $similarityScore,
                 ];
             }

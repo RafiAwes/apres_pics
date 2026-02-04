@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\IndexFaceJob;
 use App\Models\Event;
 use App\Models\EventContents;
+use App\Services\FaceNetService;
 use App\Traits\ApiResponseTraits;
 use App\Traits\ImageTrait;
 use Illuminate\Http\Request;
@@ -12,6 +14,13 @@ use Illuminate\Support\Facades\Auth;
 class EventController extends Controller
 {
     use ApiResponseTraits, ImageTrait;
+
+    protected $faceNet;
+
+    public function __construct(FaceNetService $faceNet)
+    {
+        $this->faceNet = $faceNet;
+    }
 
     public function events(Request $request)
     {
@@ -108,35 +117,54 @@ class EventController extends Controller
 
     public function UploadContent(Request $request)
     {
-
-        $validate = $request->validate([
+        $request->validate([
             'event_id' => 'required|exists:events,id',
-            'image' => 'required|image|max:2048', // Max 2MB per image
+            'images' => 'required|array',
+            'images.*' => 'image|max:2048',
         ]);
 
         try {
-
             $event = Event::where('id', $request->event_id)
                 ->where('user_id', Auth::id())
                 ->first();
 
             if (! $event) {
-                return $this->errorResponse('Event not found or you are not authorized to add content.', 404);
+                return $this->errorResponse('Event not found or unauthorized.', 404);
             }
 
-            // Handle Image Upload
-            $imagePath = $this->uploadImage($request, 'image', 'images/events');
+            // 1. Initialize the array to hold the new records
+            $uploadedContents = [];
 
-            $content = EventContents::create([
-                'event_id' => $request->event_id,
-                'image' => $imagePath,
-            ]);
+            if ($request->hasFile('images')) {
+                foreach ($request->file('images') as $imageFile) {
+
+                    // Upload Image
+                    $tempRequest = new Request;
+                    $tempRequest->files->set('image', $imageFile);
+                    $imagePath = $this->uploadImage($tempRequest, 'image', "events/{$request->event_id}");
+
+                    // Create DB Record
+                    $content = EventContents::create([
+                        'event_id' => $request->event_id,
+                        'image' => $imagePath,
+                    ]);
+
+                    // Add to the response list (so the user sees it immediately)
+                    $uploadedContents[] = $content;
+
+                    // Dispatch AI Job (Background)
+                    $fileName = basename($imagePath);
+                    $absPath = storage_path("app/public/events/{$request->event_id}/{$fileName}");
+                    IndexFaceJob::dispatch($request->event_id, $absPath);
+                }
+            }
 
         } catch (\Exception $e) {
             return $this->errorResponse($e->getMessage(), 500);
         }
 
-        return $this->successResponse($content, 'Content uploaded successfully', 200);
+        // 2. Return the populated array here!
+        return $this->successResponse($uploadedContents, 'Images uploaded. AI is processing in the background.', 200);
     }
 
     public function deleteContent($id)

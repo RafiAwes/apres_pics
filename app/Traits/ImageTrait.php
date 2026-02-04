@@ -3,7 +3,7 @@
 namespace App\Traits;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\{File, Log, Storage};
 use Termwind\Components\Raw;
 
 trait ImageTrait
@@ -35,26 +35,18 @@ trait ImageTrait
                 }
                 
                 $fileName = time().'_'.$file->getClientOriginalName();
-                $destinationPath = public_path($path);
-                
-                // Create directory if it doesn't exist
-                if (!File::exists($destinationPath)) {
-                    File::makeDirectory($destinationPath, 0755, true);
+
+                // Store in public disk (storage/app/public)
+                $storedPath = Storage::disk('public')->putFileAs($path, $file, $fileName);
+
+                if (!$storedPath) {
+                    throw new \Exception('File could not be saved to storage path: '.$path);
                 }
-                
-                // Move file directly to public path
-                $file->move($destinationPath, $fileName);
-                
-                $savedPath = $path.'/'.$fileName;
-                
-                // Verify file was saved
-                if (!File::exists(public_path($savedPath))) {
-                    throw new \Exception('File could not be saved to '.$destinationPath);
-                }
-                
-                return $savedPath;
+
+                // Return public URL path
+                return 'storage/'.$storedPath;
             } catch (\Exception $e) {
-                \Log::error('Image upload failed: '.$e->getMessage());
+                Log::error('Image upload failed: '.$e->getMessage());
                 throw $e;
             }
         }

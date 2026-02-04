@@ -2,7 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\{AdminController, AuthController, ProfileController, UserController};
+use App\Http\Controllers\Api\{AdminController, AuthController, FaceNetController, ProfileController, UserController, VisionController};
 use App\Http\Controllers\{EventController, PageController};
 
 Route::get('/user', function (Request $request) {
@@ -31,6 +31,9 @@ Route::group(['middleware' => ['auth:api']], function () {
         Route::post('/update-profile', 'updateProfile');
         Route::post('/update-avatar','UpdateAvatar');
     });
+
+    // Route::post('/events/upload-photo', [FaceNetController::class, 'uploadPhoto']);
+    Route::post('/events/search-face', [FaceNetController::class, 'search']);
 });
 
 Route::group(['prefix' => 'admin', 'middleware' => ['auth:api','role:admin']], function () {
