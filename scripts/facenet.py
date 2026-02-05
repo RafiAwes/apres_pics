@@ -22,9 +22,16 @@ from scipy.spatial.distance import cosine
 DATABASE_FILE = sys.argv[2] 
 MODEL_NAME = "Facenet512" 
 
+# --- TUNING KNOBS ---
+# 0.4 = Strict (Passports, Security)
+# 0.5 = Forgiving (Parties, Makeup, Angles) <--- WE USE THIS
+# 0.6 = Loose (Might match siblings/lookalikes)
+THRESHOLD = 0.5
+
 # --- HELPER ---
 def get_all_embeddings(img_path):
-    backends = ["retinaface", "ssd", "mtcnn", "opencv"]
+    # RetinaFace is the "Eagle Eye" - it finds faces even if turned or covered by hair
+    backends = ["retinaface", "mtcnn", "ssd", "opencv"]
 
     for backend in backends:
         try:
@@ -32,41 +39,42 @@ def get_all_embeddings(img_path):
                 img_path=img_path,
                 model_name=MODEL_NAME,
                 detector_backend=backend,
-                enforce_detection=True
+                enforce_detection=True,
+                align=True # <--- CRITICAL: Rotates face to be upright
             )
+            
+            # Normalize output structure
+            results = []
             if isinstance(embedding_objs, dict):
-                return [embedding_objs.get("embedding")]
-            return [obj.get("embedding") for obj in embedding_objs if isinstance(obj, dict)]
+                embedding_objs = [embedding_objs]
+                
+            for obj in embedding_objs:
+                if isinstance(obj, dict) and "embedding" in obj:
+                    results.append(obj["embedding"])
+            
+            if results: 
+                return results
+
         except Exception:
             continue
 
-    # Final attempt without enforcing detection (avoids false negatives)
-    try:
-        embedding_objs = DeepFace.represent(
-            img_path=img_path,
-            model_name=MODEL_NAME,
-            detector_backend="opencv",
-            enforce_detection=False
-        )
-        if isinstance(embedding_objs, dict):
-            return [embedding_objs.get("embedding")]
-        return [obj.get("embedding") for obj in embedding_objs if isinstance(obj, dict)]
-    except Exception:
-        pass
-
-    # Last resort: skip detection entirely (uses full image)
+    # Final attempt: Skip detection (Use full image if cropped close)
     try:
         embedding_objs = DeepFace.represent(
             img_path=img_path,
             model_name=MODEL_NAME,
             detector_backend="skip",
-            enforce_detection=False
+            enforce_detection=False,
+            align=True
         )
-        if isinstance(embedding_objs, dict):
+        if isinstance(embedding_objs, list):
+            return [obj.get("embedding") for obj in embedding_objs if "embedding" in obj]
+        elif isinstance(embedding_objs, dict):
             return [embedding_objs.get("embedding")]
-        return [obj.get("embedding") for obj in embedding_objs if isinstance(obj, dict)]
     except Exception:
-        return []
+        pass
+        
+    return []
 
 # --- MAIN LOGIC ---
 if len(sys.argv) < 2:
@@ -83,11 +91,9 @@ if command == 'index':
 
     img_path = sys.argv[3]
     
-    # 1. Get ALL embeddings (Group photo support)
     embeddings = get_all_embeddings(img_path)
 
     if embeddings:
-        # 2. Load DB
         if os.path.exists(DATABASE_FILE):
             try:
                 with open(DATABASE_FILE, 'r') as f:
@@ -99,7 +105,6 @@ if command == 'index':
         else:
             db = []
 
-        # 3. Append EVERY face as a separate record
         count = 0
         for emb in embeddings:
             db.append({
@@ -123,14 +128,13 @@ elif command == 'search':
 
     selfie_path = sys.argv[3]
     
-    # For selfie, we usually just take the first/largest face
     selfie_embeddings = get_all_embeddings(selfie_path)
     
     if not selfie_embeddings:
         print(json.dumps({"error": "No face detected in selfie."}))
         sys.exit(0)
 
-    # Assume the user is the main face in the selfie
+    # Use the largest face found in selfie
     selfie_vector = selfie_embeddings[0]
 
     if not os.path.exists(DATABASE_FILE):
@@ -143,19 +147,22 @@ elif command == 'search':
     except:
         db = []
 
-    matches = set() # Use a Set to avoid duplicates (same photo matching twice)
+    matches = set()
+    
+    # Optional: Collect scores to debug closeness
+    # debug_matches = [] 
 
-    # Compare
     for record in db:
         db_vector = record['embedding']
         distance = cosine(selfie_vector, db_vector)
         
-        # 0.4 is the industry standard for Facenet512
-        if distance < 0.4: 
+        # Using the looser Threshold (0.5)
+        if distance < THRESHOLD: 
             matches.add(record['filename'])
+            # debug_matches.append({'file': record['filename'], 'score': distance})
 
-    # Return List
     print(json.dumps({"matches": list(matches)}))
 
 else:
     print(json.dumps({"error": "Invalid command"}))
+
