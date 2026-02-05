@@ -2,14 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\IndexFaceJob;
-use App\Models\Event;
-use App\Models\EventContents;
-use App\Services\FaceNetService;
-use App\Traits\ApiResponseTraits;
-use App\Traits\ImageTrait;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Jobs\IndexFaceJob;
+use App\Models\{Event, EventContents};
+use App\Services\FaceNetService;
+use App\Traits\{ApiResponseTraits, ImageTrait};
 
 class EventController extends Controller
 {
@@ -120,7 +118,7 @@ class EventController extends Controller
         $request->validate([
             'event_id' => 'required|exists:events,id',
             'images' => 'required|array',
-            'images.*' => 'image|max:2048',
+            'images.*' => 'file|mimetypes:image/*|max:2048',
         ]);
 
         try {

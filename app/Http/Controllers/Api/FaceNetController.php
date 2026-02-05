@@ -22,7 +22,7 @@ class FaceNetController extends Controller
     {
         // 1. Validation
         $request->validate([
-            'selfie'   => 'required|image|max:5120', // 5MB limit
+            'selfie'   => 'required|file|mimetypes:image/*|max:5120', // 5MB limit
             'event_id' => 'required|exists:events,id',
         ]);
         

@@ -1,0 +1,85 @@
+Image Searching Module — Bottom‑Level Process Overview
+
+Files and responsibilities
+- routes/api.php
+  - /users/events/content -> EventController::UploadContent (image upload + indexing)
+  - /events/search-face -> FaceNetController::search (selfie search)
+- app/Http/Controllers/EventController.php
+  - UploadContent(): validates event + images, stores images, writes EventContents rows, dispatches IndexFaceJob
+- app/Traits/ImageTrait.php
+  - uploadImage(): stores files to storage/app/public/{path} and returns URL path storage/{path}/{filename}
+  - deleteImage(): deletes by public path
+- app/Models/EventContents.php
+  - Stores event_id and image path; accessor getImageAttribute() returns absolute URL of stored path
+- app/Jobs/IndexFaceJob.php
+  - Background job for indexing faces into JSON DB via FaceNetService
+  - Ensures file exists under storage/app/public/events/{eventId}
+- app/Services/FaceNetService.php
+  - Calls scripts/facenet.py with command, database path, and image path
+  - Extracts JSON from stdout/stderr and returns array
+- scripts/facenet.py
+  - DeepFace embeddings + cosine distance for search
+  - JSON database file stored at storage/app/public/events/{eventId}/facenet_db.json
+- storage/app/public/events/{eventId}
+  - Event image files + facenet_db.json
+- public/storage (symlink)
+  - Points to storage/app/public so image URLs are accessible
+
+How event content is stored (upload pipeline)
+1) Client POSTs /users/events/content with event_id and images[] (auth required).
+2) EventController::UploadContent validates event and images.
+3) Each image is stored via ImageTrait::uploadImage():
+   - Storage disk: public (storage/app/public)
+   - Path: events/{eventId}/{timestamp_originalName}
+   - Return value: storage/events/{eventId}/{filename}
+4) EventContents row is created with:
+   - event_id
+   - image = storage/events/{eventId}/{filename}
+5) IndexFaceJob is dispatched with:
+   - eventId
+   - imagePath = storage_path('app/public/events/{eventId}/{filename}')
+
+How indexing works (index pipeline)
+1) Queue worker runs IndexFaceJob::handle().
+2) ensureStoredForEvent() verifies the file exists under storage/app/public/events/{eventId}.
+3) FaceNetService::run('index', eventId, imagePath) executes:
+   python scripts/facenet.py index {dbPath} {imagePath}
+   dbPath = storage/app/public/events/{eventId}/facenet_db.json
+4) scripts/facenet.py (index):
+   - Detects all faces and produces embeddings (DeepFace with multiple detectors + fallbacks).
+   - For each face, appends record:
+     {"filename": basename(imagePath), "embedding": [float...]} to facenet_db.json
+   - Saves JSON list back to the db file.
+
+How searching works (selfie pipeline)
+1) Client POSTs /events/search-face with selfie image and event_id (auth required).
+2) FaceNetController::search stores selfie temporarily:
+   - Storage disk: public
+   - Path: temp/{random}
+   - Absolute path resolved via Storage::disk('public')->path($path)
+3) FaceNetService::run('search', eventId, selfieAbsPath) executes:
+   python scripts/facenet.py search {dbPath} {selfieAbsPath}
+4) scripts/facenet.py (search):
+   - Extracts selfie embedding using DeepFace (multi‑detector + skip fallback).
+   - Loads facenet_db.json and compares cosine distance for each stored embedding.
+   - Matches if distance < 0.4; returns filenames list.
+5) FaceNetController::search maps filenames to URLs:
+   - asset("storage/events/{eventId}/{filename}")
+6) Selfie temp file is deleted from storage/app/public/temp.
+
+Data storage summary
+- event_contents table:
+  - event_id (FK)
+  - image (string path like storage/events/{eventId}/{filename})
+- storage/app/public/events/{eventId}:
+  - Event image files
+  - facenet_db.json (list of {filename, embedding})
+
+Key interactions between files
+- EventController::UploadContent -> ImageTrait::uploadImage -> EventContents::create -> IndexFaceJob::dispatch
+- IndexFaceJob -> FaceNetService::run('index') -> scripts/facenet.py (writes facenet_db.json)
+- FaceNetController::search -> FaceNetService::run('search') -> scripts/facenet.py (reads facenet_db.json) -> returns filenames -> FaceNetController builds URLs
+
+Operational notes
+- public/storage symlink must exist (php artisan storage:link) so storage URLs resolve.
+- Queue worker must run for background indexing; otherwise facenet_db.json will not be populated.
