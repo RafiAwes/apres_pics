@@ -2,7 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\{AdminController, AuthController, FaceNetController, ProfileController, UserController, VisionController};
+use App\Http\Controllers\Api\{AdminController, AuthController, FaceNetController, GuestController, ProfileController, UserController, VisionController};
 use App\Http\Controllers\{EventController, PageController};
 
 Route::get('/user', function (Request $request) {
@@ -60,4 +60,12 @@ Route::group(['prefix' => 'users', 'middleware' => ['auth:api', 'role:user']], f
     Route::post('/events/content', [EventController::class, 'UploadContent']);
     Route::delete('/events/content/{id}', [EventController::class, 'deleteContent']);
     Route::get('/events/contents/{event}', [EventController::class, 'eventContents']);
+});
+
+
+// guest module
+Route::group(['controller' => GuestController::class, 'prefix' => 'guest'], function () {
+    Route::post('/send-invitation', 'sendInvitation');
+    Route::get('/validate-link/{guestId}/{eventId}', 'validateLink')->name('guest.view.event');
+    Route::post('/verify-otp', 'verifyOtp');
 });
