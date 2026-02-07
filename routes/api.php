@@ -61,6 +61,7 @@ Route::group(['prefix' => 'users', 'middleware' => ['auth:api', 'role:user']], f
     Route::delete('/events/content/{id}', [EventController::class, 'deleteContent']);
     Route::get('/events/contents/{event}', [EventController::class, 'eventContents']);
     Route::get('/events/generate-password', [EventController::class, 'generateEventPassword']);
+    Route::post('/events/set-password/{eventId}', [EventController::class, 'setEventPassword']);
 });
 
 

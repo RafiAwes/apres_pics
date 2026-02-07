@@ -221,7 +221,30 @@ class EventController extends Controller
     }
 
     public function generateEventPassword(){
-            $password = $this->eventService->generatePassword();
-            return $this->successResponse(['password' => $password], 'Event password generated successfully', 200);
+        $password = $this->eventService->generatePassword();
+        return $this->successResponse(['password' => $password], 'Event password generated successfully', 200);
     }
+
+    public function setEventPassword(Request $request, $eventId){
+        $request->validate([
+            'password' => 'required|string|min:6|max:6',
+        ]);
+
+        $event = Event::where('id', $eventId)
+                ->where('user_id', Auth::id())
+                ->first();
+
+        if (! $event) {
+            return $this->errorResponse('Event not found or you are not authorized to edit it.', 404);
+        }
+
+        try {
+            $this->eventService->setPasswordForEvent($event, $request->password);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e->getMessage(), 500);
+        }
+
+        return $this->successResponse($event, 'Event password set successfully', 200);
+    }
+
 }
