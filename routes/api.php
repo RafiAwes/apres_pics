@@ -2,8 +2,8 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\{AdminController, AuthController, FaceNetController, GuestController, ProfileController, UserController, VisionController};
-use App\Http\Controllers\{EventController, PageController};
+use App\Http\Controllers\Api\{AdminController, AuthController, EventController, FaceNetController, GuestController, ProfileController, UserController, VisionController};
+use App\Http\Controllers\PageController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -60,6 +60,7 @@ Route::group(['prefix' => 'users', 'middleware' => ['auth:api', 'role:user']], f
     Route::post('/events/content', [EventController::class, 'UploadContent']);
     Route::delete('/events/content/{id}', [EventController::class, 'deleteContent']);
     Route::get('/events/contents/{event}', [EventController::class, 'eventContents']);
+    Route::get('/events/generate-password', [EventController::class, 'generateEventPassword']);
 });
 
 

@@ -1,22 +1,24 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Jobs\IndexFaceJob;
 use App\Models\{Event, EventContents};
-use App\Services\FaceNetService;
+use App\Services\{EventService, FaceNetService, GuestService};
 use App\Traits\{ApiResponseTraits, ImageTrait};
+use App\Http\Controllers\Controller;
 
 class EventController extends Controller
 {
     use ApiResponseTraits, ImageTrait;
 
     protected $faceNet;
-
-    public function __construct(FaceNetService $faceNet)
+    protected $eventService;
+    public function __construct(FaceNetService $faceNet, EventService $eventService)
     {
+        $this->eventService = $eventService;
         $this->faceNet = $faceNet;
     }
 
@@ -216,5 +218,10 @@ class EventController extends Controller
 
         // 4. Return the combined data
         return $this->successResponse($data, 'Event details and contents fetched successfully', 200);
+    }
+
+    public function generateEventPassword(){
+            $password = $this->eventService->generatePassword();
+            return $this->successResponse(['password' => $password], 'Event password generated successfully', 200);
     }
 }
