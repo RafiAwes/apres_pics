@@ -13,12 +13,12 @@ class InviteGuestMail extends Mailable
     use Queueable, SerializesModels;
 
     public $link;
-    public $otp;
-    
-    public function __construct($link, $otp)
+    public $password;
+
+    public function __construct($link, $password = null)
     {
         $this->link = $link;
-        $this->otp = $otp;
+        $this->password = $password;
     }
 
     /**

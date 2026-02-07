@@ -69,5 +69,5 @@ Route::group(['prefix' => 'users', 'middleware' => ['auth:api', 'role:user']], f
 Route::group(['controller' => GuestController::class, 'prefix' => 'guest'], function () {
     Route::post('/send-invitation', 'sendInvitation');
     Route::get('/validate-link/{guestId}/{eventId}', 'validateLink')->name('guest.view.event');
-    Route::post('/verify-otp', 'verifyOtp');
+    Route::post('/access-event', 'verifyPassword');
 });

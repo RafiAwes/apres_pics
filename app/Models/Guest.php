@@ -13,8 +13,6 @@ class Guest extends Model
         'event_id',
         'name',
         'email',
-        'otp_code',
-        'otp_expires_at',
         'access_token',
     ];
 

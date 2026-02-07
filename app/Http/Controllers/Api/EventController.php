@@ -4,11 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Jobs\IndexFaceJob;
 use App\Models\{Event, EventContents};
-use App\Services\{EventService, FaceNetService, GuestService};
-use App\Traits\{ApiResponseTraits, ImageTrait};
+use App\Jobs\IndexFaceJob;
 use App\Http\Controllers\Controller;
+use App\Traits\{ApiResponseTraits, ImageTrait};
+use App\Services\{EventService, FaceNetService, GuestService};
 
 class EventController extends Controller
 {
@@ -149,6 +149,9 @@ class EventController extends Controller
                         'image' => $imagePath,
                     ]);
 
+                    // Update total images count
+                    $this->updateTotalImages($request->event_id);
+
                     // Add to the response list (so the user sees it immediately)
                     $uploadedContents[] = $content;
 
@@ -220,31 +223,43 @@ class EventController extends Controller
         return $this->successResponse($data, 'Event details and contents fetched successfully', 200);
     }
 
-    public function generateEventPassword(){
+    public function generateEventPassword()
+    {
         $password = $this->eventService->generatePassword();
         return $this->successResponse(['password' => $password], 'Event password generated successfully', 200);
     }
 
-    public function setEventPassword(Request $request, $eventId){
+    public function setEventPassword(Request $request, $eventId)
+    {
         $request->validate([
             'password' => 'required|string|min:6|max:6',
         ]);
 
-        $event = Event::where('id', $eventId)
-                ->where('user_id', Auth::id())
-                ->first();
-
-        if (! $event) {
-            return $this->errorResponse('Event not found or you are not authorized to edit it.', 404);
-        }
-
         try {
+            $event = Event::where('id', $eventId)
+                    ->where('user_id', Auth::id())
+                    ->first();
+
+            if (! $event) {
+                return $this->errorResponse('Event not found or you are not authorized to edit it.', 404);
+            }
+
             $this->eventService->setPasswordForEvent($event, $request->password);
+            $event->save();
         } catch (\Exception $e) {
             return $this->errorResponse($e->getMessage(), 500);
         }
 
         return $this->successResponse($event, 'Event password set successfully', 200);
+    }
+
+    private function updateTotalImages($eventId)
+    {
+        $event = Event::findOrFail($eventId);
+        if ($event) {
+            $event->total_images = EventContents::where('event_id', $eventId)->count();
+            $event->save();
+        }
     }
 
 }

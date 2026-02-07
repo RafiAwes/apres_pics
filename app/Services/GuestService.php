@@ -27,21 +27,21 @@ class GuestService
         );
     }
 
-    public function generateOtp(Guest $guest)
-    {
-        $otp = rand(100000, 999999);
+    // public function generateOtp(Guest $guest)
+    // {
+    //     $otp = rand(100000, 999999);
         
-        $guest->update([
-            'otp_code' => $otp,
-            'otp_expires_at' => now()->addMinutes(30)
-        ]);
+    //     $guest->update([
+    //         'otp_code' => $otp,
+    //         'otp_expires_at' => now()->addMinutes(30)
+    //     ]);
 
-        return $otp;
-    }
+    //     return $otp;
+    // }
 
-    public function sendInviteEmail($email, $link, $otp)
+    public function sendInviteEmail($email, $link, $password)
     {
-        Mail::to($email)->send(new InviteGuestMail($link, $otp));
+        Mail::to($email)->send(new InviteGuestMail($link, $password));
         return true;
     }
 }
