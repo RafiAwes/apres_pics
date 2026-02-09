@@ -2,7 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\{AdminController, AuthController, EventController, FaceNetController, GuestController, ProfileController, UserController, VisionController};
+use App\Http\Controllers\Api\{AdminController, AuthController, EventController, FaceNetController, GuestController, PaymentController, ProfileController, SubscriptionController, UserController};
 use App\Http\Controllers\PageController;
 
 Route::get('/user', function (Request $request) {
@@ -29,8 +29,12 @@ Route::group(['controller' => PageController::class], function () {
 Route::group(['middleware' => ['auth:api']], function () {
     Route::group(['controller' => ProfileController::class], function () {
         Route::post('/update-profile', 'updateProfile');
-        Route::post('/update-avatar','UpdateAvatar');
+        Route::post('/update-avatar','updateAvatar');
     });
+    
+    // Route::post('/subscription/purchase', [SubscriptionController::class, 'purchase']);
+    Route::post('/subscription/payment-intent', [SubscriptionController::class, 'createPaymentIntent']);
+    Route::post('/subscription/confirm', [SubscriptionController::class, 'confirmSubscription']);
 
     // Route::post('/events/upload-photo', [FaceNetController::class, 'uploadPhoto']);
     Route::post('/events/search-face', [FaceNetController::class, 'search']);

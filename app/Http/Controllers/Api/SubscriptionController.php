@@ -2,101 +2,173 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\{Auth, DB};
+use Illuminate\Support\Facades\{Auth, DB, Log, Validator};
 use App\Models\{Package, Subscription, Transaction};
 use App\Traits\ApiResponseTraits;
-use App\Http\Controllers\Controller;
-use Laravel\Cashier\Exceptions\IncompletePayment;
+use Stripe\{Stripe, PaymentIntent};
 
 class SubscriptionController extends Controller
 {
     use ApiResponseTraits;
 
-    public function purchase(Request $request)
+    public function __construct()
     {
-        $request->validate([
+        // Set Stripe API Key
+        // Checks config, then STRIPE_SECRET, then STRIPE_SECRET_KEY (common variation)
+        $apiKey = config('services.stripe.secret') ?? env('STRIPE_SECRET') ?? env('STRIPE_SECRET_KEY');
+        
+        if (!$apiKey) {
+            throw new \Exception('Stripe API Key not found. Please set STRIPE_SECRET in .env');
+        }
+        
+        Stripe::setApiKey($apiKey);
+    }
+
+    /**
+     * STEP 1: Create Payment Intent
+     * Returns client_secret to frontend
+     */
+    public function createPaymentIntent(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
             'package_id' => 'required|exists:packages,id',
-            'payment_method_id' => 'required|string',
-            'event_id' => 'nullable|integer',
+            'payment_method_id' => 'nullable|string', // Optional: for API-only testing/payment
         ]);
 
-        $user = Auth::guard('api')->user();
-        $package = Package::find($request->package_id);
+        if ($validator->fails()) {
+            return $this->errorResponse('Validation Error', 422, $validator->errors());
+        }
 
         try {
-            if (! $user->hasStripeId()) {
-                $user->createAsStripeCustomer();
-            }
+            $package = Package::findOrFail($request->package_id);
+            // Amount in cents
+            $amountInCents = round($package->price * 100);
 
-            // === SCENARIO 1: MONTHLY SUBSCRIPTION ===
-            if ($package->type === 'monthly') {
-                if ($user->subscribed('default')) {
-                    return $this->errorResponse('You already have an active subscription.', 409);
-                }
-
-                // Create Stripe Subscription
-                $subscription = $user->newSubscription('default', $package->stripe_price_id)
-                    ->create($request->payment_method_id);
-
-                // LOG THE TRANSACTION
-                Transaction::create([
-                    'user_id' => $user->id,
+            $intentData = [
+                'amount' => $amountInCents,
+                'currency' => 'usd',
+                'automatic_payment_methods' => ['enabled' => true],
+                'metadata' => [
                     'package_id' => $package->id,
-                    'stripe_payment_id' => $subscription->latestInvoice()->id, // Capture Invoice ID
-                    'amount' => $package->price,
-                    'type' => 'subscription',
-                    'status' => 'succeeded',
-                    'meta_data' => ['stripe_sub_id' => $subscription->id],
-                ]);
+                    'user_id' => Auth::id(),
+                ],
+            ];
 
-                return $this->successResponse(null, 'Subscription started successfully!', 200);
+            // If payment_method_id is provided, confirm immediately (API-driven flow)
+            if ($request->has('payment_method_id')) {
+                $intentData['payment_method'] = $request->payment_method_id;
+                $intentData['confirm'] = true;
+                $intentData['return_url'] = url('/'); // Required for confirm=true
+                // Remove automatic_payment_methods if providing manual method often avoids conflicts, 
+                // but usually fine if method matches. Safe to unset for explicit cards.
+                unset($intentData['automatic_payment_methods']); 
             }
 
-            // === SCENARIO 2: PAY PER EVENT ===
-            elseif ($package->type === 'per_event') {
-                if (! $request->event_id) {
-                    return $this->errorResponse('Event ID is required.', 422);
-                }
+            $paymentIntent = PaymentIntent::create($intentData);
 
-                $amountInCents = $package->price * 100;
+            return $this->successResponse([
+                'client_secret' => $paymentIntent->client_secret,
+                'payment_intent_id' => $paymentIntent->id,
+                'status' => $paymentIntent->status, // Return status so client knows if it succeeded
+                'amount' => $package->price,
+                'currency' => 'usd',
+            ], 'Payment Intent created successfully', 200);
 
-                // Charge Stripe
-                $charge = $user->charge($amountInCents, $request->payment_method_id, [
-                    'description' => 'Access to Event ID: '.$request->event_id,
-                ]);
+        } catch (\Exception $e) {
+            Log::error('Stripe Intent Error: ' . $e->getMessage());
+            return $this->errorResponse('Failed to create Payment Intent', 500, $e->getMessage());
+        }
+    }
 
-                // DB Transaction to ensure we don't take money without giving access
-                DB::transaction(function () use ($user, $package, $charge, $request) {
+    /**
+     * STEP 2: Confirm Subscription
+     * Call this AFTER frontend confirms payment with Stripe
+     */
+    public function confirmSubscription(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'payment_intent_id' => 'required|string',
+            'package_id' => 'required|exists:packages,id',
+            'event_id' => 'nullable|exists:events,id',
+        ]);
 
-                    // 1. Grant Access
+        if ($validator->fails()) {
+            return $this->errorResponse('Validation Error', 422, $validator->errors());
+        }
+
+        $user = Auth::guard('api')->user();
+        $package = Package::findOrFail($request->package_id);
+
+        try {
+            // Retrieve Intent to verify status
+            $paymentIntent = PaymentIntent::retrieve($request->payment_intent_id);
+
+            if ($paymentIntent->status !== 'succeeded') {
+                return $this->errorResponse('Payment not succeeded yet. Status: ' . $paymentIntent->status, 400);
+            }
+
+            // Check if already processed to avoid duplicates
+            if (Transaction::where('stripe_payment_id', $paymentIntent->id)->exists()) {
+                 return $this->errorResponse('Transaction already processed.', 409);
+            }
+
+            return DB::transaction(function () use ($user, $package, $paymentIntent, $request) {
+                
+                // 1. Create/Record Subscription Access
+                if ($package->type === 'monthly') {
+                   Subscription::create([
+                        'user_id' => $user->id,
+                        'package_id' => $package->id,
+                        'type' => 'monthly',
+                        'stripe_id' => $paymentIntent->id,
+                        'stripe_status' => $paymentIntent->status,
+                        'stripe_price' => $package->price,
+                        'quantity' => 1,
+                        'starts_at' => now(),
+                        'ends_at' => now()->addDays($package->duration_days),
+                        'status' => 'active',
+                    ]);
+                } 
+                elseif ($package->type === 'per_event') {
+                    if (empty($request->event_id)) {
+                        throw new \Exception('Event ID required for per_event package.');
+                    }
+                    
                     DB::table('event_access')->insert([
                         'user_id' => $user->id,
                         'event_id' => $request->event_id,
+                        // 'payment_id' => $paymentIntent->id, 
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
+                }
 
-                    // 2. LOG THE TRANSACTION
-                    Transaction::create([
-                        'user_id' => $user->id,
-                        'package_id' => $package->id,
-                        'stripe_payment_id' => $charge->id, // Capture Charge ID
-                        'amount' => $package->price,
-                        'type' => 'one_time',
-                        'status' => 'succeeded',
-                        'meta_data' => ['event_id' => $request->event_id],
-                    ]);
-                });
+                // 2. Log Transaction
+                Transaction::create([
+                    'user_id' => $user->id,
+                    'package_id' => $package->id,
+                    'stripe_payment_id' => $paymentIntent->id,
+                    'amount' => $package->price,
+                    'currency' => $paymentIntent->currency,
+                    'type' => 'subscription', 
+                    'status' => 'paid',
+                    'meta_data' => [
+                        'payment_method' => $paymentIntent->payment_method ?? null,
+                        'event_id' => $request->event_id ?? null
+                    ],
+                ]);
 
-                return $this->successResponse(null, 'Event access purchased successfully!', 200);
-            }
+                return $this->successResponse([
+                    'package' => $package->name,
+                    'status' => 'active'
+                ], 'Subscription confirmed and activated.', 200);
+            });
 
-        } catch (IncompletePayment $e) {
-            // Handle 3D Secure / Confirmation
-            return $this->errorResponse('Payment authentication required.', 402);
         } catch (\Exception $e) {
-            return $this->errorResponse('Payment failed: '.$e->getMessage(), 500);
+            Log::error('Subscription Confirmation Error: ' . $e->getMessage());
+            return $this->errorResponse('Failed to confirm subscription', 500, $e->getMessage());
         }
     }
 }

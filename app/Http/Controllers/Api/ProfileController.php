@@ -55,7 +55,7 @@ class ProfileController extends Controller
         }
     }
 
-    public function UpdateAvatar(Request $request)
+    public function updateAvatar(Request $request)
     {
         $user = Auth::user();
         
