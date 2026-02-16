@@ -8,19 +8,20 @@ class Subscription extends Model
 {
     protected $fillable = [
         'user_id',
-        'type',
-        'stripe_id',
-        'stripe_status',
-        'stripe_price',
-        'quantity',
         'package_id',
+        'stripe_id',
+        'status',
         'starts_at',
         'ends_at',
-        'status',
     ];
 
-    protected $casts = [
-        'starts_at' => 'datetime',
-        'ends_at' => 'datetime',
-    ];
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function package()
+    {
+        return $this->belongsTo(Package::class);
+    }
 }

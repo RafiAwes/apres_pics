@@ -5,170 +5,177 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\{Auth, DB, Log, Validator};
-use App\Models\{Package, Subscription, Transaction};
+use Stripe\{Stripe, Customer, Subscription, PaymentMethod, PaymentIntent};
+use App\Models\{Package, Transaction, User, Subscription as LocalSubscription};
+use Stripe\Checkout\Session;
+
 use App\Traits\ApiResponseTraits;
-use Stripe\{Stripe, PaymentIntent};
 
 class SubscriptionController extends Controller
 {
     use ApiResponseTraits;
-
     public function __construct()
     {
-        // Set Stripe API Key
-        // Checks config, then STRIPE_SECRET, then STRIPE_SECRET_KEY (common variation)
-        $apiKey = config('services.stripe.secret') ?? env('STRIPE_SECRET') ?? env('STRIPE_SECRET_KEY');
-        
-        if (!$apiKey) {
-            throw new \Exception('Stripe API Key not found. Please set STRIPE_SECRET in .env');
-        }
-        
-        Stripe::setApiKey($apiKey);
+        Stripe::setApiKey(config('services.stripe.secret'));
     }
 
     /**
-     * STEP 1: Create Payment Intent
-     * Returns client_secret to frontend
+     * UNIFIED PAYMENT API
      */
-    public function createPaymentIntent(Request $request)
+    public function createPayment(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'package_id' => 'required|exists:packages,id',
-            'payment_method_id' => 'nullable|string', // Optional: for API-only testing/payment
+            'package_id'     => 'required|exists:packages,id',
+            'payment_method' => 'required|string', // pm_...
+            'event_id'       => 'nullable|exists:events,id',
         ]);
 
         if ($validator->fails()) {
             return $this->errorResponse('Validation Error', 422, $validator->errors());
         }
 
-        try {
-            $package = Package::findOrFail($request->package_id);
-            // Amount in cents
-            $amountInCents = round($package->price * 100);
-
-            $intentData = [
-                'amount' => $amountInCents,
-                'currency' => 'usd',
-                'automatic_payment_methods' => ['enabled' => true],
-                'metadata' => [
-                    'package_id' => $package->id,
-                    'user_id' => Auth::id(),
-                ],
-            ];
-
-            // If payment_method_id is provided, confirm immediately (API-driven flow)
-            if ($request->has('payment_method_id')) {
-                $intentData['payment_method'] = $request->payment_method_id;
-                $intentData['confirm'] = true;
-                $intentData['return_url'] = url('/'); // Required for confirm=true
-                // Remove automatic_payment_methods if providing manual method often avoids conflicts, 
-                // but usually fine if method matches. Safe to unset for explicit cards.
-                unset($intentData['automatic_payment_methods']); 
-            }
-
-            $paymentIntent = PaymentIntent::create($intentData);
-
-            return $this->successResponse([
-                'client_secret' => $paymentIntent->client_secret,
-                'payment_intent_id' => $paymentIntent->id,
-                'status' => $paymentIntent->status, // Return status so client knows if it succeeded
-                'amount' => $package->price,
-                'currency' => 'usd',
-            ], 'Payment Intent created successfully', 200);
-
-        } catch (\Exception $e) {
-            Log::error('Stripe Intent Error: ' . $e->getMessage());
-            return $this->errorResponse('Failed to create Payment Intent', 500, $e->getMessage());
-        }
-    }
-
-    /**
-     * STEP 2: Confirm Subscription
-     * Call this AFTER frontend confirms payment with Stripe
-     */
-    public function confirmSubscription(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'payment_intent_id' => 'required|string',
-            'package_id' => 'required|exists:packages,id',
-            'event_id' => 'nullable|exists:events,id',
-        ]);
-
-        if ($validator->fails()) {
-            return $this->errorResponse('Validation Error', 422, $validator->errors());
-        }
-
-        $user = Auth::guard('api')->user();
+        $user = Auth::user();
         $package = Package::findOrFail($request->package_id);
 
+        DB::beginTransaction();
         try {
-            // Retrieve Intent to verify status
-            $paymentIntent = PaymentIntent::retrieve($request->payment_intent_id);
+            // --- SCENARIO A: MONTHLY SUBSCRIPTION ---
+            if ($package->type === 'monthly') {
 
-            if ($paymentIntent->status !== 'succeeded') {
-                return $this->errorResponse('Payment not succeeded yet. Status: ' . $paymentIntent->status, 400);
-            }
-
-            // Check if already processed to avoid duplicates
-            if (Transaction::where('stripe_payment_id', $paymentIntent->id)->exists()) {
-                 return $this->errorResponse('Transaction already processed.', 409);
-            }
-
-            return DB::transaction(function () use ($user, $package, $paymentIntent, $request) {
-                
-                // 1. Create/Record Subscription Access
-                if ($package->type === 'monthly') {
-                   Subscription::create([
-                        'user_id' => $user->id,
-                        'package_id' => $package->id,
-                        'type' => 'monthly',
-                        'stripe_id' => $paymentIntent->id,
-                        'stripe_status' => $paymentIntent->status,
-                        'stripe_price' => $package->price,
-                        'quantity' => 1,
-                        'starts_at' => now(),
-                        'ends_at' => now()->addDays($package->duration_days),
-                        'status' => 'active',
+                // 1. Create/Get Customer
+                if (!$user->stripe_id) {
+                    $customer = Customer::create([
+                        'email' => $user->email,
+                        'name'  => $user->name,
+                        'payment_method' => $request->payment_method,
+                        'invoice_settings' => ['default_payment_method' => $request->payment_method],
                     ]);
-                } 
-                elseif ($package->type === 'per_event') {
-                    if (empty($request->event_id)) {
-                        throw new \Exception('Event ID required for per_event package.');
-                    }
-                    
-                    DB::table('event_access')->insert([
-                        'user_id' => $user->id,
-                        'event_id' => $request->event_id,
-                        // 'payment_id' => $paymentIntent->id, 
-                        'created_at' => now(),
-                        'updated_at' => now(),
+                    $user->update(['stripe_id' => $customer->id]);
+                    $customerId = $customer->id;
+                } else {
+                    $customerId = $user->stripe_id;
+                    $pm = PaymentMethod::retrieve($request->payment_method);
+                    $pm->attach(['customer' => $customerId]);
+                    Customer::update($customerId, [
+                        'invoice_settings' => ['default_payment_method' => $request->payment_method]
                     ]);
                 }
 
-                // 2. Log Transaction
-                Transaction::create([
-                    'user_id' => $user->id,
-                    'package_id' => $package->id,
-                    'stripe_payment_id' => $paymentIntent->id,
-                    'amount' => $package->price,
-                    'currency' => $paymentIntent->currency,
-                    'type' => 'subscription', 
-                    'status' => 'paid',
-                    'meta_data' => [
-                        'payment_method' => $paymentIntent->payment_method ?? null,
-                        'event_id' => $request->event_id ?? null
-                    ],
+                // 2. Create Subscription
+                $stripeSub = Subscription::create([
+                    'customer' => $customerId,
+                    'items' => [['price' => $package->stripe_price_id]],
+                    'expand' => ['latest_invoice.payment_intent'],
                 ]);
 
-                return $this->successResponse([
-                    'package' => $package->name,
-                    'status' => 'active'
-                ], 'Subscription confirmed and activated.', 200);
-            });
+                if ($stripeSub->status === 'active') {
+                    // Create Local Record
+                    LocalSubscription::create([
+                        'user_id' => $user->id,
+                        'package_id' => $package->id,
+                        'stripe_id' => $stripeSub->id,
+                        'status' => 'active',
+                        'starts_at' => now(),
+                        'ends_at' => now()->addMonth()
+                    ]);
 
+                    $msg = "Subscription active.";
+                    $txnId = $stripeSub->latest_invoice->payment_intent->id;
+                } else {
+                    DB::rollBack();
+                    return $this->successResponse([
+                        'requires_action' => true,
+                        'client_secret' => $stripeSub->latest_invoice->payment_intent->client_secret
+                    ], 'Payment requires action', 200);
+                }
+            }
+
+            // --- SCENARIO B: ONE-TIME PAYMENT ---
+            elseif ($package->type === 'per_event') {
+                if (!$request->event_id) return $this->errorResponse('Event ID required', 422);
+
+                $intent = PaymentIntent::create([
+                    'amount' => round($package->price * 100),
+                    'currency' => 'usd',
+                    'payment_method' => $request->payment_method,
+                    'confirm' => true,
+                    'return_url' => 'http://localhost/dummy',
+                    'metadata' => ['event_id' => $request->event_id, 'package_id' => $package->id, 'user_id' => $user->id]
+                ]);
+
+                if ($intent->status === 'succeeded') {
+                    DB::table('event_access')->insert([
+                        'user_id' => $user->id,
+                        'event_id' => $request->event_id,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]);
+                    $msg = "Event unlocked.";
+                    $txnId = $intent->id;
+                } else {
+                    DB::rollBack();
+                    return $this->successResponse([
+                        'requires_action' => true,
+                        'client_secret' => $intent->client_secret
+                    ], 'Payment requires action', 200);
+                }
+            }
+
+            // Log Transaction
+            Transaction::create([
+                'user_id' => $user->id,
+                'package_id' => $package->id,
+                'stripe_payment_id' => $txnId,
+                'amount' => $package->price,
+                'status' => 'paid',
+                'meta_data' => json_encode(['event_id' => $request->event_id ?? null])
+            ]);
+
+            DB::commit();
+            return $this->successResponse(null, $msg, 200);
         } catch (\Exception $e) {
-            Log::error('Subscription Confirmation Error: ' . $e->getMessage());
-            return $this->errorResponse('Failed to confirm subscription', 500, $e->getMessage());
+            DB::rollBack();
+            return $this->errorResponse($e->getMessage(), 500);
         }
+    }
+
+    public function createCheckoutSession(Request $request)
+    {
+        Stripe::setApiKey(config('services.stripe.secret'));
+
+        // 1. Dynamic Amount (e.g., from request or database)
+        $amount = $request->input('amount'); // 45.50
+        $packageName = "Custom Package";
+
+        // 2. Create the Session
+        $session = Session::create([
+            'payment_method_types' => ['card'],
+            'line_items' => [[
+                'price_data' => [
+                    'currency' => 'usd',
+                    'product_data' => [
+                        'name' => $packageName,
+                    ],
+                    'unit_amount' => round($amount * 100), // Convert to cents (4550)
+                ],
+                'quantity' => 1,
+            ]],
+            'mode' => 'payment', // use 'subscription' if recurring
+            
+            // 3. Metadata is CRUCIAL for the Webhook
+            'client_reference_id' => Auth::id(), // User ID
+            'metadata' => [
+                'package_id' => $request->package_id,
+                'custom_note' => 'Variable amount charge'
+            ],
+
+            'success_url' => 'http://localhost:3000/success?session_id={CHECKOUT_SESSION_ID}',
+            'cancel_url' => 'http://localhost:3000/cancel',
+        ]);
+
+        // 4. Return the URL to the frontend
+        return response()->json([
+            'url' => $session->url 
+        ]);
     }
 }
