@@ -274,8 +274,5 @@ class WebhookController extends Controller
         ]);
 
         Log::info("Webhook: Checkout Session completed for User {$userId}");
-
-
-
     }  
 }

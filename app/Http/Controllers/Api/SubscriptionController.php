@@ -26,7 +26,7 @@ class SubscriptionController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'package_id'     => 'required|exists:packages,id',
-            'payment_method' => 'required|string', // pm_...
+            'payment_method' => 'required|string',
             'event_id'       => 'nullable|exists:events,id',
         ]);
 
@@ -35,6 +35,7 @@ class SubscriptionController extends Controller
         }
 
         $user = Auth::user();
+        // return $user->id; 
         $package = Package::findOrFail($request->package_id);
 
         DB::beginTransaction();
@@ -42,6 +43,7 @@ class SubscriptionController extends Controller
             // --- SCENARIO A: MONTHLY SUBSCRIPTION ---
             if ($package->type === 'monthly') {
 
+                $transaction_type = 'subscription'; 
                 // 1. Create/Get Customer
                 if (!$user->stripe_id) {
                     $customer = Customer::create([
@@ -68,6 +70,9 @@ class SubscriptionController extends Controller
                     'expand' => ['latest_invoice.payment_intent'],
                 ]);
 
+                Log::info('Stripe Subscription Created', ['sub_id' => $stripeSub->id, 'status' => $stripeSub->status]);
+                Log::info('Latest Invoice Dump', ['invoice' => $stripeSub->latest_invoice]);
+
                 if ($stripeSub->status === 'active') {
                     // Create Local Record
                     LocalSubscription::create([
@@ -80,7 +85,13 @@ class SubscriptionController extends Controller
                     ]);
 
                     $msg = "Subscription active.";
-                    $txnId = $stripeSub->latest_invoice->payment_intent->id;
+                    // Safely get transaction ID
+                    if (isset($stripeSub->latest_invoice) && isset($stripeSub->latest_invoice->payment_intent)) {
+                        $txnId = $stripeSub->latest_invoice->payment_intent->id;
+                    } else {
+                        // Fallback if no payment intent (e.g. trial or zero amount)
+                        $txnId = $stripeSub->latest_invoice->id ?? $stripeSub->id;
+                    }
                 } else {
                     DB::rollBack();
                     return $this->successResponse([
@@ -93,6 +104,8 @@ class SubscriptionController extends Controller
             // --- SCENARIO B: ONE-TIME PAYMENT ---
             elseif ($package->type === 'per_event') {
                 if (!$request->event_id) return $this->errorResponse('Event ID required', 422);
+
+                $transaction_type = 'one_time';
 
                 $intent = PaymentIntent::create([
                     'amount' => round($package->price * 100),
@@ -161,7 +174,7 @@ class SubscriptionController extends Controller
                 'quantity' => 1,
             ]],
             'mode' => 'payment', // use 'subscription' if recurring
-            
+
             // 3. Metadata is CRUCIAL for the Webhook
             'client_reference_id' => Auth::id(), // User ID
             'metadata' => [
@@ -175,7 +188,7 @@ class SubscriptionController extends Controller
 
         // 4. Return the URL to the frontend
         return response()->json([
-            'url' => $session->url 
+            'url' => $session->url
         ]);
     }
 }

@@ -1,0 +1,25 @@
+
+   FAIL  Tests\Feature\SubscriptionPaymentTest
+  ⨯ monthly subscription creation with null payment intent
+  ────────────────────  
+   F…  QueryException   
+  SQLSTATE[HY000]: General error: 1 no such table: subscriptions (Connection: sqlite, Database: :memory:, SQL: alter table "subscriptions" add column "package_id" integer not null)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:578
+    574▕             if ($this->pretending()) {
+    575▕                 return true;
+    576▕             }
+    577▕ 
+  ➜ 578▕             $statement = $this->getPdo()->prepare($query);
+    579▕ 
+    580▕             $this->bindValues($statement, $this->prepareBindings($bindings));
+    581▕ 
+    582▕             $this->recordsHaveBeenModified();
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:578
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:827
+
+
+  Tests:    1 failed (0 assertions)
+  Duration: 0.57s
+

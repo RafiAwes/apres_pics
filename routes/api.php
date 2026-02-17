@@ -2,8 +2,9 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\{AdminController, AuthController, EventController, FaceNetController, GuestController, PaymentController, ProfileController, SubscriptionController, UserController};
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\Api\WebhookController;
+use App\Http\Controllers\Api\{AdminController, AuthController, EventController, FaceNetController, GuestController, PaymentController, ProfileController, SubscriptionController, UserController};
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -31,10 +32,14 @@ Route::group(['middleware' => ['auth:api']], function () {
         Route::post('/update-profile', 'updateProfile');
         Route::post('/update-avatar','updateAvatar');
     });
+
+    Route::post('/payment/create', [SubscriptionController::class, 'createPayment']);
     
+
+    Route::post('/stripe/webhook', [WebhookController::class, 'handleWebhook']);
     // Route::post('/subscription/purchase', [SubscriptionController::class, 'purchase']);
-    Route::post('/subscription/payment-intent', [SubscriptionController::class, 'createPaymentIntent']);
-    Route::post('/subscription/confirm', [SubscriptionController::class, 'confirmSubscription']);
+    // Route::post('/subscription/payment-intent', [SubscriptionController::class, 'createPaymentIntent']);
+    // Route::post('/subscription/confirm', [SubscriptionController::class, 'confirmSubscription']);
 
     // Route::post('/events/upload-photo', [FaceNetController::class, 'uploadPhoto']);
     Route::post('/events/search-face', [FaceNetController::class, 'search']);

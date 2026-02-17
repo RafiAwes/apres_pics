@@ -1,0 +1,7 @@
+
+   PASS  Tests\Feature\SubscriptionPaymentTest
+  ✓ monthly subscription creation… 2.34s  
+
+  Tests:    1 passed (3 assertions)
+  Duration: 2.54s
+
