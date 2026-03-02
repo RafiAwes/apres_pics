@@ -53,7 +53,7 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth:api','role:admin']], f
     Route::group(['controller' => PageController::class], function () {
         Route::post('/page', 'CreateOrUpdatePage');
         Route::post('/faqs', 'store');
-        Route::put('/faqs/{id}', 'update');     
+        Route::post('/faqs/{id}', 'update');     
         Route::delete('/faqs/{id}', 'destroy');
     });
     Route::group(['controller' => AdminController::class], function () {
@@ -64,7 +64,7 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth:api','role:admin']], f
 Route::group(['prefix' => 'users', 'middleware' => ['auth:api', 'role:user']], function () {
     Route::get('/events', [EventController::class, 'events']);
     Route::post('/events', [EventController::class, 'createEvent']);
-    Route::put('/events/{id}', [EventController::class, 'updateEvent']);
+    Route::post('/events/{id}', [EventController::class, 'updateEvent']);
     Route::delete('/events/{id}', [EventController::class, 'deleteEvent']);
     Route::post('/events/content', [EventController::class, 'UploadContent']);
     Route::delete('/events/content/{id}', [EventController::class, 'deleteContent']);
