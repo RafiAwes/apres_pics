@@ -35,7 +35,6 @@ class SubscriptionController extends Controller
         }
 
         $user = Auth::user();
-        // return $user->id; 
         $package = Package::findOrFail($request->package_id);
 
         DB::beginTransaction();

@@ -3,8 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PageController;
-use App\Http\Controllers\Api\WebhookController;
-use App\Http\Controllers\Api\{AdminController, AuthController, EventController, FaceNetController, GuestController, PaymentController, ProfileController, SubscriptionController, UserController};
+use App\Http\Controllers\Api\{AdminController, AuthController, EventController, FaceNetController, GuestController, PaymentController, ProfileController, SubscriptionController, UserController, WebhookController};
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -16,6 +15,7 @@ Route::group(['controller' => AuthController::class, 'prefix' => 'auth'], functi
     Route::post('/resend-otp', 'resendOtp');
     Route::post('/forgot-password', 'forgotPassword');
     Route::post('/reset-password', 'resetPassword');
+    Route::post('/forget-password-verify', 'forgetPasswordVerify');
     Route::post('/login','login');
     Route::post('/logout','logout')->middleware('auth:api');
     Route::post('/change-password', 'changePassword')->middleware('auth:api');
@@ -36,14 +36,14 @@ Route::group(['middleware' => ['auth:api']], function () {
     Route::post('/payment/create', [SubscriptionController::class, 'createPayment']);
     
 
-    Route::post('/stripe/webhook', [WebhookController::class, 'handleWebhook']);
     // Route::post('/subscription/purchase', [SubscriptionController::class, 'purchase']);
     // Route::post('/subscription/payment-intent', [SubscriptionController::class, 'createPaymentIntent']);
     // Route::post('/subscription/confirm', [SubscriptionController::class, 'confirmSubscription']);
-
+    
     // Route::post('/events/upload-photo', [FaceNetController::class, 'uploadPhoto']);
     Route::post('/events/search-face', [FaceNetController::class, 'search']);
 });
+
 
 Route::group(['prefix' => 'admin', 'middleware' => ['auth:api','role:admin']], function () {
     Route::group(['controller' => UserController::class], function () {
@@ -80,3 +80,5 @@ Route::group(['controller' => GuestController::class, 'prefix' => 'guest'], func
     Route::get('/validate-link/{guestId}/{eventId}', 'validateLink')->name('guest.view.event');
     Route::post('/access-event', 'verifyPassword');
 });
+
+Route::post('/stripe/webhook', [WebhookController::class, 'handleWebhook']);

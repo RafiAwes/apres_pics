@@ -29,7 +29,7 @@ class WebhookController extends Controller
         }
 
         $data = $event->data->object;
-
+        Log::info('Webhook received: ' . $data);
         // 2. The Router (Switch Case)
         switch ($event->type) {
 
@@ -196,48 +196,44 @@ class WebhookController extends Controller
     {
         $userId = $session->client_reference_id;
 
-        if (!$userId && isset($session->customer_details->email))
-        {
+        if (!$userId && isset($session->customer_details->email)) {
             $user = User::where('email', $session->customer_details->email)->first();
             $userId = $user ? $user->id : null;
         }
 
-       if ($userId)
-       {
+        if ($userId) {
             Log::info("Webhook: Checkout session completed for User #{$userId}. Session ID: {$session->id}");
             return;
-       }
+        }
 
-       $packageId = $session->metadata->package_id ?? null;
-       $eventId = $session->metadata->event_id ?? null;
+        $packageId = $session->metadata->package_id ?? null;
+        $eventId = $session->metadata->event_id ?? null;
 
-       if ($packageId)
-       {
-            $amountPaid = $session->amount_total/100;
+        if ($packageId) {
+            $amountPaid = $session->amount_total / 100;
             $package = Package::where('price', $amountPaid)->first();
             $packageId = $package ? $package->id : null;
-       }
+        }
 
-       if ($session->mode === 'subscription')
-       {
+        if ($session->mode === 'subscription') {
             $subscriptionId = $session->subscription;
-            Subscription::updateOrCreate(['user_id' => $userId],
-            [
-                'package_id' => $packageId,
-                'stripe_id' => $session->subscription,
-                'status' => 'active',
-                'starts_at' => now(),
-                'ends_at' => now()->addMonth(),
-            ]);
-            
-            $txnId = $subscriptionId;
-       }
+            Subscription::updateOrCreate(
+                ['user_id' => $userId],
+                [
+                    'package_id' => $packageId,
+                    'stripe_id' => $session->subscription,
+                    'status' => 'active',
+                    'starts_at' => now(),
+                    'ends_at' => now()->addMonth(),
+                ]
+            );
 
-       else {
+            $txnId = $subscriptionId;
+        } else {
 
             // --- ONE-TIME PAYMENT ---
             $paymentIntentId = $session->payment_intent;
-            
+
             // Grant Event Access if applicable
             if ($eventId) {
                 // Idempotency check
@@ -256,9 +252,9 @@ class WebhookController extends Controller
                 }
             }
             $txnId = $paymentIntentId;
-       }
+        }
 
-       // 4. Log Transaction
+        // 4. Log Transaction
         Transaction::create([
             'user_id'           => $userId,
             'package_id'        => $packageId ?? 1, // Default fallback
@@ -274,5 +270,5 @@ class WebhookController extends Controller
         ]);
 
         Log::info("Webhook: Checkout Session completed for User {$userId}");
-    }  
+    }
 }

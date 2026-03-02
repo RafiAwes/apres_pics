@@ -1,14 +1,15 @@
 <?php
 
 namespace App\Services;
-
-use Illuminate\Database\Eloquent\Casts\Json;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
 use App\Notifications\SendOtpMail;
+use App\Traits\ApiResponseTraits;
 
 class VerificationService
 {
+    use ApiResponseTraits;
     protected const EXPIRATION_TIME = 300; // 5 minutes
 
     private function generateOtp(): string
@@ -17,7 +18,7 @@ class VerificationService
         return $otp;
     }
 
-    public function sendOtp(User $user): array
+    public function sendOtp(User $user): JsonResponse
     {
         $generate = $this->generateOtp();
         $otp = Hash::make($generate);
@@ -26,71 +27,56 @@ class VerificationService
         $user->update([
             "otp"=> $otp,
             "otp_expires_at" => now()->addSeconds(self::EXPIRATION_TIME),
+            "otp_verified" => false,
+            "otp_verified_at" => null,
         ]);
 
         $user->notify(new SendOtpMail($generate));
 
-        return ['success' => true, 'message' => 'OTP sent successfully.' ];
+        return $this->successResponse(null, 'OTP sent successfully.', 200);
     }
 
-    public function verifyOtp(User $user, string $otp)  
+    public function verifyOtp(User $user, string $otp): JsonResponse
     {
-        if(now()->greaterThan($user->otp_expires_at)) {
-            return [
-                'success' => false,
-                'message' => 'OTP has expired.',
-            ];
+        if($user->otp_expires_at && now()->greaterThan($user->otp_expires_at)) {
+            return $this->errorResponse('OTP has expired.', 400);
         }
 
         if($user->email_verified_at !== null) {
-            return [
-                'success' => false,
-                'message' => 'Email is already verified.',
-            ];
+            return $this->errorResponse('Email is already verified.', 400);
         }
         
         if($user->otp !== null) {
-            $storedOtp = $user->otp;
+            $storedOtp = $user->otp; 
 
         } else {
-            return [
-                'success' => false,
-                'message' => 'No OTP found for this user.',
-            ];
+            return $this->errorResponse('No OTP found for this user.', 400);
         }
         if($storedOtp && Hash::check($otp, $storedOtp)) {
-                // Invalidate OTP after successful verification
+            $user->update([
+                "otp" => null,
+                "otp_expires_at" => null,
+                "otp_verified" => 1,
+                "otp_verified_at" => now(),
+                "email_verified_at" => now(),
+            ]);
 
-                $user->update([
-                    "otp" => null,
-                    "otp_expires_at" => null,
-                ]);
-
-                return [
-                    'success' => true,
-                    'message' => 'OTP verified successfully.',
-                ];
-            } else {
-                return [
-                    'success' => false,
-                    'message' => 'Invalid OTP.',
-                ];
-            }
+            return $this->successResponse(null, 'OTP verified successfully.', 200);
+        } else {
+            return $this->errorResponse('Invalid OTP.', 400);
+        }
     }
 
-    public function resendOtp(User $user): array
+    public function resendOtp(User $user): JsonResponse
     {
-        if($user->email_verified_at !== null) {
-            return [
-                'success' => false,
-                'message' => 'Email is already verified.',
-            ];
+        if($user->otp_verified_at !== null) {
+            return $this->errorResponse('Email is already verified.', 400);
         }
 
         return $this->sendOtp($user);
     }
 
-    public function forgotPassword(User $user): array
+    public function forgotPassword(User $user): JsonResponse
     {
         $generate = $this->generateOtp();
         $otp = Hash::make($generate);
@@ -98,45 +84,57 @@ class VerificationService
         $user->update([
             "otp" => $otp,
             "otp_expires_at" => now()->addSeconds(self::EXPIRATION_TIME),
+            "otp_verified" => false,
+            "otp_verified_at" => null,
         ]);
 
         $user->notify(new SendOtpMail($generate));
 
-        return ['success' => true, 'message' => 'Password reset OTP sent to your email.'];
+        return $this->successResponse(null, 'Password reset OTP sent to your email.', 200);
     }
 
-    public function resetPassword(User $user, string $otp, string $password): array
+    public function forgotPasswordVerify(User $user, string $otp): JsonResponse
     {
-        if(now()->greaterThan($user->otp_expires_at)) {
-            return [
-                'success' => false,
-                'message' => 'OTP has expired.',
-            ];
+        if($user->otp_expires_at && now()->greaterThan($user->otp_expires_at)) {
+            return $this->errorResponse('OTP has expired.', 400);
         }
 
-        if($user->otp === null) {
-            return [
-                'success' => false,
-                'message' => 'No OTP found for this user.',
-            ];
+        if($user->otp !== null) {
+            $storedOtp = $user->otp; 
+
+        } else {
+            return $this->errorResponse('No OTP found for this user.', 400);
+        }
+        if($storedOtp && Hash::check($otp, $storedOtp)) {
+            $user->update([
+                "otp_verified" => 1,
+                "otp_verified_at" => now(),
+            ]);
+            return $this->successResponse(null, 'OTP verified successfully. You can now reset your password.', 200);
+        } else {
+            return $this->errorResponse('Invalid OTP.', 400);
+        }
+    }
+
+   public function resetPassword(User $user, string $password): JsonResponse
+    {
+        if (!$user->otp_verified || $user->otp_verified_at === null || $user->otp_expires_at === null) {
+            return $this->errorResponse('Forgot password OTP verification required before resetting password.', 400);
         }
 
-        if(!Hash::check($otp, $user->otp)) {
-            return [
-                'success' => false,
-                'message' => 'Invalid OTP.',
-            ];
+        if($user->otp_expires_at && now()->greaterThan($user->otp_expires_at)) {
+            return $this->errorResponse('OTP has expired.', 400);
         }
 
+        // Update password and clear OTP
         $user->update([
             "password" => Hash::make($password),
             "otp" => null,
             "otp_expires_at" => null,
+            "otp_verified" => false,
+            "otp_verified_at" => null,
         ]);
-
-        return [
-            'success' => true,
-            'message' => 'Password reset successfully.',
-        ];
+        
+        return $this->successResponse(null, 'Password reset successfully.', 200);
     }
 }
