@@ -15,37 +15,35 @@ Route::group(['controller' => AuthController::class, 'prefix' => 'auth'], functi
     Route::post('/resend-otp', 'resendOtp');
     Route::post('/forgot-password', 'forgotPassword');
     Route::post('/reset-password', 'resetPassword');
-    Route::post('/forget-password-verify', 'forgetPasswordVerify');
-    Route::post('/login','login');
-    Route::post('/logout','logout')->middleware('auth:api');
+    Route::post('/login', 'login');
+    Route::post('/logout', 'logout')->middleware('auth:api');
     Route::post('/change-password', 'changePassword')->middleware('auth:api');
 });
 
 Route::group(['controller' => PageController::class], function () {
     Route::get('/page/{key}', 'PageShow');
     Route::get('/faqs', 'index');
-    
 });
 
 Route::group(['middleware' => ['auth:api']], function () {
     Route::group(['controller' => ProfileController::class], function () {
         Route::post('/update-profile', 'updateProfile');
-        Route::post('/update-avatar','updateAvatar');
+        Route::post('/update-avatar', 'updateAvatar');
     });
 
     Route::post('/payment/create', [SubscriptionController::class, 'createPayment']);
-    
+
 
     // Route::post('/subscription/purchase', [SubscriptionController::class, 'purchase']);
     // Route::post('/subscription/payment-intent', [SubscriptionController::class, 'createPaymentIntent']);
     // Route::post('/subscription/confirm', [SubscriptionController::class, 'confirmSubscription']);
-    
+
     // Route::post('/events/upload-photo', [FaceNetController::class, 'uploadPhoto']);
     Route::post('/events/search-face', [FaceNetController::class, 'search']);
 });
 
 
-Route::group(['prefix' => 'admin', 'middleware' => ['auth:api','role:admin']], function () {
+Route::group(['prefix' => 'admin', 'middleware' => ['auth:api', 'role:admin']], function () {
     Route::group(['controller' => UserController::class], function () {
         Route::get('/users', 'UserList');
         Route::post('/ban-user/{user}', 'banUser');
@@ -53,7 +51,7 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth:api','role:admin']], f
     Route::group(['controller' => PageController::class], function () {
         Route::post('/page', 'CreateOrUpdatePage');
         Route::post('/faqs', 'store');
-        Route::post('/faqs/{id}', 'update');     
+        Route::post('/faqs/{id}', 'update');
         Route::delete('/faqs/{id}', 'destroy');
     });
     Route::group(['controller' => AdminController::class], function () {

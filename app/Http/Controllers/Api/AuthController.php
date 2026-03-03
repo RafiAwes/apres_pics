@@ -13,7 +13,7 @@ use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 
 class AuthController extends Controller
 {
-    
+
     use ApiResponseTraits;
 
     protected  $verificationService;
@@ -59,7 +59,6 @@ class AuthController extends Controller
         $this->verificationService->sendOtp($user);
 
         return $this->successResponse(['user' => $data], 'User registered successfully. Please verify your email with the OTP sent.', 201);
-
     }
 
     public function verifyEmail(Request $request)
@@ -71,22 +70,23 @@ class AuthController extends Controller
 
         $user = User::where('email', $data['email'])->first();
 
-        if(!$user) {
+        if (!$user) {
             return $this->errorResponse('User not found.', 404);
         }
+
+        $isInitialVerification = ($user->email_verified_at === null);
 
         $result = $this->verificationService->verifyOtp($user, $data['otp']);
         $resultData = $this->normalizeServiceResult($result);
 
-        if(isset($resultData['success']) && $resultData['success']) {
-            $user->email_verified_at = now();
-            $user->otp_verified = 1;
-            $user->otp_verified_at = now();
-            $user->otp = null;
-            $user->otp_expires_at = null;
-            $user->save();
+        if (isset($resultData['success']) && $resultData['success']) {
+            if ($isInitialVerification) {
+                // Generate token for login since it's the first time verifying
+                $token = Auth::guard('api')->login($user);
+                return $this->RespondWithToken($token, $user);
+            }
 
-            return $this->successResponse(null, 'Email verified successfully.', 200);
+            return $this->successResponse(null, $resultData['message'] ?? 'OTP verified successfully. You can now reset your password.', 200);
         } else {
             $message = $resultData['message'] ?? 'Verification failed.';
             return $this->errorResponse($message, 400);
@@ -101,14 +101,14 @@ class AuthController extends Controller
 
         $user = User::where('email', $data['email'])->first();
 
-        if(!$user) {
+        if (!$user) {
             return $this->errorResponse('User not found.', 404);
         }
 
         $result = $this->verificationService->resendOtp($user);
         $resultData = $this->normalizeServiceResult($result);
 
-        if(isset($resultData['success']) && $resultData['success']) {
+        if (isset($resultData['success']) && $resultData['success']) {
             return $this->successResponse(null, $resultData['message'] ?? 'OTP resent.', 200);
         } else {
             return $this->errorResponse($resultData['message'] ?? 'Failed to resend OTP.', 400);
@@ -123,7 +123,7 @@ class AuthController extends Controller
 
         $user = User::where('email', $data['email'])->first();
 
-        if(!$user) {
+        if (!$user) {
             return $this->errorResponse('User not found.', 404);
         }
 
@@ -143,14 +143,14 @@ class AuthController extends Controller
 
         $user = User::where('email', $data['email'])->first();
 
-        if(!$user) {
+        if (!$user) {
             return $this->errorResponse('User not found.', 404);
         }
 
         $result = $this->verificationService->resetPassword($user, $data['password']);
         $resultData = $this->normalizeServiceResult($result);
 
-        if(isset($resultData['success']) && $resultData['success']) {
+        if (isset($resultData['success']) && $resultData['success']) {
             return $this->successResponse(null, $resultData['message'] ?? 'Password reset successfully.', 200);
         } else {
             return $this->errorResponse($resultData['message'] ?? 'Failed to reset password.', 400);
@@ -160,22 +160,22 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $credentials = $request->only('email', 'password');
-        
+
         if (!$token = Auth::guard('api')->attempt($credentials)) {
             return $this->errorResponse('Invalid credentials.', 401);
         }
 
         $user = Auth::guard('api')->user();
-        
+
         // Check if user is banned and ban hasn't expired
         if ($user->ban_expires_at && $user->ban_expires_at->isFuture()) {
             Auth::guard('api')->logout();
             return $this->errorResponse(
-                'Your account is banned until ' . $user->ban_expires_at->toDateTimeString() . '. Reason: ' . $user->ban_reason, 
+                'Your account is banned until ' . $user->ban_expires_at->toDateTimeString() . '. Reason: ' . $user->ban_reason,
                 403
             );
         }
-        
+
         // If ban has expired, clear the ban
         if ($user->ban_expires_at && $user->ban_expires_at->isPast()) {
             $user->update([
@@ -189,7 +189,7 @@ class AuthController extends Controller
             Auth::guard('api')->logout();
             return $this->errorResponse('Email is not verified. Please verify your email before logging in.', 403);
         }
-        
+
         return $this->RespondWithToken($token, $user);
     }
 
@@ -200,28 +200,6 @@ class AuthController extends Controller
         return $this->successResponse(null, 'Successfully logged out.', 200);
     }
 
-    public function forgetPasswordVerify(Request $request)
-    {
-        $data = $request->validate([
-            'email' => 'required|string|email|max:255',
-            'otp' => 'required|string|max:6',
-        ]);
-
-        $user = User::where('email', $data['email'])->first();
-
-        if(!$user) {
-            return $this->errorResponse('User not found.', 404);
-        }
-
-        $result = $this->verificationService->forgotPasswordVerify($user, $data['otp']);
-        $resultData = $this->normalizeServiceResult($result);
-
-        if(isset($resultData['success']) && $resultData['success']) {
-            return $this->successResponse(null, $resultData['message'] ?? 'OTP verified successfully. You can now reset your password.', 200);
-        } else {
-            return $this->errorResponse($resultData['message'] ?? 'Failed to verify OTP.', 400);
-        }
-    }
 
     public function changePassword(Request $request)
     {
@@ -252,14 +230,14 @@ class AuthController extends Controller
 
         return $this->successResponse(null, 'Password changed successfully.', 200);
     }
-    
+
     // private functions 
     private function RespondWithToken($token, $user)
     {
         return $this->successResponse([
             'access_token' => $token,
             'token_type' => 'bearer',
-            'expires_in' => config('jwt.ttl') * 60, 
+            'expires_in' => config('jwt.ttl'),
             'user' => $user
         ], 'Authenticated successfully.', 200);
     }
