@@ -27,7 +27,7 @@
             </div>
 
             <div class="body">
-                <p class="lead">You're invited to view photos from a private event.</p>
+                <p class="lead">You're invited to view photos from <strong>{{ $eventName ?? 'a private event' }}</strong>.</p>
 
                 <p>To get started, open the event page using the button below:</p>
 

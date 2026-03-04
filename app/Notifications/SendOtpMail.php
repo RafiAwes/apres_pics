@@ -7,7 +7,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class SendOtpMail extends Notification
+class SendOtpMail extends Notification implements ShouldQueue
 {
     use Queueable;
 
@@ -37,13 +37,13 @@ class SendOtpMail extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Your One-Time Password (OTP) from '.config('app.name'))
+            ->subject('Your One-Time Password (OTP) from ' . config('app.name'))
             ->line("You are receiving this email because we received a request for OTP.")
             ->line("Your OTP is: {$this->otp}")
             // ->action('Notification Action', url('/'))
             ->line("Please verify your email with this OTP")
             ->line("If you have already verified then ignore it.")
-            ->line('Thank you for using '.config('app.name').'!');
+            ->line('Thank you for using ' . config('app.name') . '!');
     }
 
     /**
@@ -54,7 +54,7 @@ class SendOtpMail extends Notification
     public function toArray(object $notifiable): array
     {
         return [
-            'otp'=> $this->otp,
+            'otp' => $this->otp,
         ];
     }
 }

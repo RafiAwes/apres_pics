@@ -8,17 +8,19 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\{Content, Envelope};
 use Illuminate\Queue\SerializesModels;
 
-class InviteGuestMail extends Mailable
+class InviteGuestMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
     public $link;
     public $password;
+    public $eventName;
 
-    public function __construct($link, $password = null)
+    public function __construct($link, $password = null, $eventName = null)
     {
         $this->link = $link;
         $this->password = $password;
+        $this->eventName = $eventName;
     }
 
     /**
@@ -27,7 +29,7 @@ class InviteGuestMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'You are invited to an event!',
+            subject: $this->eventName ? "Invitation to: {$this->eventName}" : 'You are invited to an event!',
         );
     }
 

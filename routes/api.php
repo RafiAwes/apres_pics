@@ -3,7 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PageController;
-use App\Http\Controllers\Api\{AdminController, AuthController, EventController, FaceNetController, GuestController, PaymentController, ProfileController, SubscriptionController, UserController, WebhookController};
+use App\Http\Controllers\Api\{AdminController, AuthController, EventController, FaceNetController, GuestController, ProfileController, SubscriptionController, UserController, WebhookController};
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -72,9 +72,16 @@ Route::group(['prefix' => 'users', 'middleware' => ['auth:api', 'role:user']], f
 });
 
 
-// guest module
+Route::group(['middleware' => ['auth:api']], function () {
+    Route::group(['controller' => GuestController::class, 'prefix' => 'guest'], function () {
+        Route::post('/send-invitation', 'sendInvitation');
+        Route::post('/edit-email', 'editEmail');
+        Route::post('/send-again', 'sendAgain');
+    });
+});
+
+// guest module (public)
 Route::group(['controller' => GuestController::class, 'prefix' => 'guest'], function () {
-    Route::post('/send-invitation', 'sendInvitation');
     Route::get('/validate-link/{guestId}/{eventId}', 'validateLink')->name('guest.view.event');
     Route::post('/access-event', 'verifyPassword');
 });

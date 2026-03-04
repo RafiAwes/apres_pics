@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Guest;
 use App\Services\{EventService, GuestService};
@@ -19,49 +20,109 @@ class GuestController extends Controller
     public function __construct(GuestService $guestService)
     {
         $this->guestService = $guestService;
-        // EventService injected to generate/set event passwords
         $this->eventService = app(EventService::class);
     }
 
     public function sendInvitation(Request $request)
     {
         $request->validate([
-            'name' => 'nullable|string',
-            'email' => 'required|email',
+            'emails' => 'required|array',
+            'emails.*' => 'email',
             'event_id' => 'required|exists:events,id',
+            'link' => 'required|string',
         ]);
 
         try {
-            $guest = $this->guestService->findOrCreateGuest(
-                $request->email,
-                $request->event_id,
-                $request->name
-            );
+            $eventId = $request->event_id;
+            $link = $request->link;
+            $emails = $request->emails;
 
-            $link = $this->guestService->generateLink($guest);
+            $event = \App\Models\Event::findOrFail($eventId);
+            if ($event->user_id !== Auth::id()) {
+                return $this->errorResponse('You are not authorized to invite guests to this event.', 403);
+            }
 
-            // Use existing event password if set; otherwise generate and persist one
-            $event = $guest->event;
             $password = null;
-            if ($event) {
-                if ($event->password) {
-                    try {
-                        $password = $this->eventService->decryptPassword($event);
-                    } catch (\Exception $e) {
-                        // if decryption fails (corrupt or old hash), generate new password
-                        $password = $this->eventService->generatePassword();
-                        $this->eventService->setPasswordForEvent($event, $password);
-                    }
-                } else {
-                    $password = $this->eventService->generatePassword();
-                    $this->eventService->setPasswordForEvent($event, $password);
+            if ($event->password) {
+                try {
+                    $password = $this->eventService->decryptPassword($event);
+                } catch (\Exception $e) {
+                
+                    $password = null;
                 }
             }
 
-            // Send the invite with link and plaintext password when available
-            $this->guestService->sendInviteEmail($request->email, $link, $password);
+            foreach ($emails as $email) {
+                $guest = $this->guestService->findOrCreateGuest($email, $eventId);
 
-            return $this->successResponse(['guest_id' => $guest->id, 'message' => 'Invitation sent successfully'], 'Email sent.', 200);
+                // Send the invite with provided link and event password
+                $this->guestService->sendInviteEmail($email, $link, $password, $event->name);
+            }
+
+            return $this->successResponse(null, 'Invitations sent successfully to ' . count($emails) . ' guests.', 200);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e->getMessage(), 500);
+        }
+    }
+
+    public function editEmail(Request $request)
+    {
+        $request->validate([
+            'guest_id' => 'required|exists:guests,id',
+            'email' => 'required|email',
+        ]);
+
+        try {
+            $guest = Guest::findOrFail($request->guest_id);
+
+            // Check event ownership
+            if ($guest->event->user_id !== Auth::id()) {
+                return $this->errorResponse('You are not authorized to manage this guest.', 403);
+            }
+
+            // Check if another guest in the same event already has this email
+            $duplicate = Guest::where('event_id', $guest->event_id)
+                ->where('email', $request->email)
+                ->where('id', '!=', $guest->id)
+                ->first();
+
+            if ($duplicate) {
+                return $this->errorResponse('This email is already registered as a guest for this event.', 422);
+            }
+
+            $guest->email = $request->email;
+            $guest->save();
+
+            return $this->successResponse($guest, 'Guest email updated successfully.', 200);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e->getMessage(), 500);
+        }
+    }
+
+    public function sendAgain(Request $request)
+    {
+        $request->validate([
+            'guest_id' => 'required|exists:guests,id',
+            'link' => 'required|string',
+        ]);
+
+        try {
+            $guest = Guest::findOrFail($request->guest_id);
+            $event = $guest->event;
+
+            // Check event ownership
+            if ($event->user_id !== Auth::id()) {
+                return $this->errorResponse('You are not authorized to manage this guest.', 403);
+            }
+
+            $password = null;
+            if ($event && $event->password) {
+                $password = $this->eventService->decryptPassword($event);
+            }
+
+            $this->guestService->sendInviteEmail($guest->email, $request->link, $password, $event->name);
+
+            return $this->successResponse(null, 'Invitation resent successfully.', 200);
         } catch (\Exception $e) {
             return $this->errorResponse($e->getMessage(), 500);
         }
@@ -77,7 +138,6 @@ class GuestController extends Controller
             'event_id' => $eventId,
             'guest_id' => $guestId,
         ], 'Link Valid. Please enter password.', 200);
-
     }
 
     public function verifyPassword(Request $request)

@@ -14,12 +14,12 @@ class GuestService
         return Guest::firstOrCreate(
             ['email' => $email, 'event_id' => $eventId],
             ['name' => $name]
-        ); 
+        );
     }
 
     public function generateLink(Guest $guest)
     {
-         $expiresAt = now()->addMinutes(config('app.guest_link_expiry', 60));
+        $expiresAt = now()->addMinutes(config('app.guest_link_expiry', 60));
         return URL::temporarySignedRoute(
             'guest.view.event',
             $expiresAt,
@@ -30,7 +30,7 @@ class GuestService
     // public function generateOtp(Guest $guest)
     // {
     //     $otp = rand(100000, 999999);
-        
+
     //     $guest->update([
     //         'otp_code' => $otp,
     //         'otp_expires_at' => now()->addMinutes(30)
@@ -39,9 +39,9 @@ class GuestService
     //     return $otp;
     // }
 
-    public function sendInviteEmail($email, $link, $password)
+    public function sendInviteEmail($email, $link, $password, $eventName = null)
     {
-        Mail::to($email)->send(new InviteGuestMail($link, $password));
+        Mail::to($email)->send(new InviteGuestMail($link, $password, $eventName));
         return true;
     }
 }
