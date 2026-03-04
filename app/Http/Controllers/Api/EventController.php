@@ -63,7 +63,7 @@ class EventController extends Controller
         ]);
 
         try {
-            // dd(Auth::user()->id);
+
             $event = Event::where('id', $id)
                 ->where('user_id', Auth::id())
                 ->first();
@@ -285,12 +285,9 @@ class EventController extends Controller
                 return $this->errorResponse('You are not authorized to edit this content.', 403);
             }
 
-            // Delete old image
             if ($content->getRawOriginal('image')) {
                 $this->deleteImage($content->getRawOriginal('image'));
             }
-
-            // Upload new image
             $imagePath = $this->uploadImage($request, 'image', "events/{$event->id}");
             $content->update(['image' => $imagePath]);
 
@@ -313,4 +310,5 @@ class EventController extends Controller
             $event->save();
         }
     }
+    
 }
