@@ -252,6 +252,59 @@ class EventController extends Controller
         return $this->successResponse($event, 'Event password set successfully', 200);
     }
 
+    public function eventDetails($id)
+    {
+        try {
+            $event = Event::where('id', $id)
+                ->where('user_id', Auth::id())
+                ->first();
+
+            if (!$event) {
+                return $this->errorResponse('Event not found or you are not authorized to view it.', 404);
+            }
+
+            return $this->successResponse($event, 'Event details fetched successfully', 200);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e->getMessage(), 500);
+        }
+    }
+
+    public function editContent(Request $request, $id)
+    {
+        $request->validate([
+            'image' => 'required|file|mimetypes:image/*|max:2048',
+        ]);
+
+        try {
+            $content = EventContents::findOrFail($id);
+            $event = Event::where('id', $content->event_id)
+                ->where('user_id', Auth::id())
+                ->first();
+
+            if (!$event) {
+                return $this->errorResponse('You are not authorized to edit this content.', 403);
+            }
+
+            // Delete old image
+            if ($content->getRawOriginal('image')) {
+                $this->deleteImage($content->getRawOriginal('image'));
+            }
+
+            // Upload new image
+            $imagePath = $this->uploadImage($request, 'image', "events/{$event->id}");
+            $content->update(['image' => $imagePath]);
+
+            // Dispatch AI Job (Background)
+            $fileName = basename($imagePath);
+            $absPath = storage_path("app/public/events/{$event->id}/{$fileName}");
+            IndexFaceJob::dispatch($event->id, $absPath);
+
+            return $this->successResponse($content, 'Content updated successfully. AI is processing in the background.', 200);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e->getMessage(), 500);
+        }
+    }
+
     private function updateTotalImages($eventId)
     {
         $event = Event::findOrFail($eventId);

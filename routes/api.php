@@ -33,12 +33,6 @@ Route::group(['middleware' => ['auth:api']], function () {
 
     Route::post('/payment/create', [SubscriptionController::class, 'createPayment']);
 
-
-    // Route::post('/subscription/purchase', [SubscriptionController::class, 'purchase']);
-    // Route::post('/subscription/payment-intent', [SubscriptionController::class, 'createPaymentIntent']);
-    // Route::post('/subscription/confirm', [SubscriptionController::class, 'confirmSubscription']);
-
-    // Route::post('/events/upload-photo', [FaceNetController::class, 'uploadPhoto']);
     Route::post('/events/search-face', [FaceNetController::class, 'search']);
 });
 
@@ -68,6 +62,8 @@ Route::group(['prefix' => 'users', 'middleware' => ['auth:api', 'role:user']], f
     Route::delete('/events/content/{id}', [EventController::class, 'deleteContent']);
     Route::get('/events/contents/{event}', [EventController::class, 'eventContents']);
     Route::get('/events/generate-password', [EventController::class, 'generateEventPassword']);
+    Route::get('/events/details/{id}', [EventController::class, 'eventDetails']);
+    Route::post('/events/content/update/{id}', [EventController::class, 'editContent']);
     Route::post('/events/set-password/{eventId}', [EventController::class, 'setEventPassword']);
 });
 
