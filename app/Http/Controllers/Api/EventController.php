@@ -12,6 +12,7 @@ use App\Services\{EventService, FaceNetService, GuestService};
 
 class EventController extends Controller
 {
+
     use ApiResponseTraits, ImageTrait;
 
     protected $faceNet;
@@ -310,5 +311,25 @@ class EventController extends Controller
             $event->save();
         }
     }
-    
+
+    public function eventGuestList($eventId)
+    {
+        try {
+            $event = Event::where('id', $eventId)
+                ->where('user_id', Auth::id())
+                ->first();
+
+            if (!$event) {
+                return $this->errorResponse('Event not found or you are not authorized to view its guests.', 404);
+            }
+
+            $guests = \App\Models\Guest::where('event_id', $eventId)
+                ->select('id', 'email')
+                ->get();
+
+            return $this->successResponse($guests, 'Guest list fetched successfully.', 200);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e->getMessage(), 500);
+        }
+    }
 }

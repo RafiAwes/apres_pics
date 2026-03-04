@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 
 class Event extends Model
 {
@@ -21,6 +22,13 @@ class Event extends Model
         'date' => 'datetime',
         'is_active' => 'boolean',
     ];
+
+    protected function date(): Attribute
+    {
+        return Attribute::make(
+            get: fn($value) => $value ? \Carbon\Carbon::parse($value)->format('F j, Y') : null,
+        );
+    }
 
     // Relationship: Who created the event
     public function creator()

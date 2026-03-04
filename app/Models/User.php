@@ -10,12 +10,34 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Notifications\Notifiable;
 use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 
 class User extends Authenticatable implements JWTSubject
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, Billable, ApiResponseTraits;
+
+    protected function emailVerifiedAt(): Attribute
+    {
+        return Attribute::make(
+            get: fn($value) => $value ? \Carbon\Carbon::parse($value)->format('F j, Y') : null,
+        );
+    }
+
+    protected function otpVerifiedAt(): Attribute
+    {
+        return Attribute::make(
+            get: fn($value) => $value ? \Carbon\Carbon::parse($value)->format('F j, Y') : null,
+        );
+    }
+
+    protected function banExpiresAt(): Attribute
+    {
+        return Attribute::make(
+            get: fn($value) => $value ? \Carbon\Carbon::parse($value)->format('F j, Y') : null,
+        );
+    }
 
     /**
      * The attributes that are mass assignable.
@@ -137,8 +159,6 @@ class User extends Authenticatable implements JWTSubject
     public function hasActiveMonthlySubscription()
     {
         // 'default' is the name we will give the subscription
-        return $this->subscribed('default'); 
+        return $this->subscribed('default');
     }
-
-
 }

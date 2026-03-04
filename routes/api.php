@@ -64,6 +64,7 @@ Route::group(['prefix' => 'users', 'middleware' => ['auth:api', 'role:user']], f
     Route::get('/events/generate-password', [EventController::class, 'generateEventPassword']);
     Route::get('/events/details/{id}', [EventController::class, 'eventDetails']);
     Route::post('/events/content/update/{id}', [EventController::class, 'editContent']);
+    Route::get('/events/guest-list/{eventId}', [EventController::class, 'eventGuestList']);
     Route::post('/events/set-password/{eventId}', [EventController::class, 'setEventPassword']);
 });
 
@@ -73,6 +74,7 @@ Route::group(['middleware' => ['auth:api']], function () {
         Route::post('/send-invitation', 'sendInvitation');
         Route::post('/edit-email', 'editEmail');
         Route::post('/send-again', 'sendAgain');
+        Route::delete('/delete/{id}', 'deleteGuest');
     });
 });
 

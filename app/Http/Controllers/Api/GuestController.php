@@ -47,7 +47,7 @@ class GuestController extends Controller
                 try {
                     $password = $this->eventService->decryptPassword($event);
                 } catch (\Exception $e) {
-                
+
                     $password = null;
                 }
             }
@@ -190,5 +190,21 @@ class GuestController extends Controller
         return $this->successResponse([
             'access_token' => $token,
         ], 'Login Successful.', 200);
+    }
+    public function deleteGuest($id)
+    {
+        try {
+            $guest = Guest::findOrFail($id);
+
+            if ($guest->event->user_id !== Auth::id()) {
+                return $this->errorResponse('You are not authorized to manage this guest.', 403);
+            }
+
+            $guest->delete();
+
+            return $this->successResponse(null, 'Guest deleted successfully.', 200);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e->getMessage(), 500);
+        }
     }
 }
