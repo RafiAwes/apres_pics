@@ -62,8 +62,8 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth:api', 'role:admin']], 
 Route::group(['prefix' => 'users', 'middleware' => ['auth:api', 'role:user']], function () {
     Route::get('/events', [EventController::class, 'events']);
     Route::post('/events', [EventController::class, 'createEvent']);
-    Route::post('/events/{id}', [EventController::class, 'updateEvent']);
-    Route::delete('/events/{id}', [EventController::class, 'deleteEvent']);
+    Route::post('/events/update/{id}', [EventController::class, 'updateEvent']);
+    Route::delete('/events/delete/{id}', [EventController::class, 'deleteEvent']);
     Route::post('/events/content', [EventController::class, 'UploadContent']);
     Route::delete('/events/content/{id}', [EventController::class, 'deleteContent']);
     Route::get('/events/contents/{event}', [EventController::class, 'eventContents']);

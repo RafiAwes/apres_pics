@@ -24,7 +24,8 @@ class EventController extends Controller
 
     public function events(Request $request)
     {
-        $events = Event::orderBy('created_at', 'desc')->paginate(10);
+        $per_page = $request->per_page ?? 10;
+        $events = Event::where('user_id', Auth::id())->paginate($per_page);
 
         return $this->successResponse($events, 'Events fetched successfully', 200);
     }
@@ -62,7 +63,7 @@ class EventController extends Controller
         ]);
 
         try {
-
+            // dd(Auth::user()->id);
             $event = Event::where('id', $id)
                 ->where('user_id', Auth::id())
                 ->first();
@@ -88,7 +89,6 @@ class EventController extends Controller
             }
 
             $event->save();
-
         } catch (\Exception $e) {
             return $this->errorResponse($e->getMessage(), 500);
         }
@@ -124,12 +124,13 @@ class EventController extends Controller
         ]);
 
         try {
+
             $event = Event::where('id', $request->event_id)
                 ->where('user_id', Auth::id())
                 ->first();
 
             if (! $event) {
-                return $this->errorResponse('Event not found or unauthorized.', 404);
+                return $this->errorResponse('Event not found or you are not authorized to upload content to it.', 404);
             }
 
             // 1. Initialize the array to hold the new records
@@ -161,7 +162,6 @@ class EventController extends Controller
                     IndexFaceJob::dispatch($request->event_id, $absPath);
                 }
             }
-
         } catch (\Exception $e) {
             return $this->errorResponse($e->getMessage(), 500);
         }
@@ -214,7 +214,6 @@ class EventController extends Controller
                 'event_details' => $event, // This contains id, name, date, etc.
                 'contents_list' => $contents,
             ];
-
         } catch (\Exception $e) {
             return $this->errorResponse($e->getMessage(), 500);
         }
@@ -237,8 +236,8 @@ class EventController extends Controller
 
         try {
             $event = Event::where('id', $eventId)
-                    ->where('user_id', Auth::id())
-                    ->first();
+                ->where('user_id', Auth::id())
+                ->first();
 
             if (! $event) {
                 return $this->errorResponse('Event not found or you are not authorized to edit it.', 404);
@@ -261,5 +260,4 @@ class EventController extends Controller
             $event->save();
         }
     }
-
 }
