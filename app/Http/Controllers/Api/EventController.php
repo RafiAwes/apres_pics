@@ -8,7 +8,7 @@ use App\Models\{Event, EventContents};
 use App\Jobs\IndexFaceJob;
 use App\Http\Controllers\Controller;
 use App\Traits\{ApiResponseTraits, ImageTrait};
-use App\Services\{EventService, FaceNetService, GuestService};
+use App\Services\{EventService, FaceNetService};
 
 class EventController extends Controller
 {
@@ -165,24 +165,24 @@ class EventController extends Controller
                     // Upload Image
                     $tempRequest = new Request;
                     $tempRequest->files->set('image', $imageFile);
-                    $imagePath = $this->uploadImage($tempRequest, 'image', "events/{$request->event_id}");
+                    $imagePath = $this->uploadImage($tempRequest, 'image', "events/{$event->id}");
 
                     // Create DB Record
                     $content = EventContents::create([
-                        'event_id' => $request->event_id,
+                        'event_id' => $event->id,
                         'image' => $imagePath,
                     ]);
 
                     // Update total images count
-                    $this->updateTotalImages($request->event_id);
+                    $this->updateTotalImages($event->id);
 
                     // Add to the response list (so the user sees it immediately)
                     $uploadedContents[] = $content;
 
                     // Dispatch AI Job (Background)
                     $fileName = basename($imagePath);
-                    $absPath = storage_path("app/public/events/{$request->event_id}/{$fileName}");
-                    IndexFaceJob::dispatch($request->event_id, $absPath);
+                    $absPath = storage_path("app/public/events/{$event->id}/{$fileName}");
+                    IndexFaceJob::dispatch($event->id, $absPath);
                 }
             }
         } catch (\Exception $e) {
@@ -339,7 +339,7 @@ class EventController extends Controller
                 return $this->errorResponse('Event not found or you are not authorized to view its guests.', 404);
             }
 
-            $guests = \App\Models\Guest::where('event_id', $eventId)
+            $guests = \App\Models\Guest::where('event_id', $event->id)
                 ->select('id', 'email')
                 ->get();
 
