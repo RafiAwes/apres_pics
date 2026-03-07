@@ -13,10 +13,20 @@ class Event extends Model
     protected $fillable = [
         'user_id',
         'name',
+        'slug',
         'date',
         'address',
         'is_active',
     ];
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($event) {
+            $event->slug = \Illuminate\Support\Str::random(10);
+        });
+    }
 
     protected $casts = [
         'date' => 'datetime',

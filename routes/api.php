@@ -66,6 +66,7 @@ Route::group(['prefix' => 'users', 'middleware' => ['auth:api', 'role:user']], f
     Route::post('/events/content/update/{id}', [EventController::class, 'editContent']);
     Route::get('/events/guest-list/{eventId}', [EventController::class, 'eventGuestList']);
     Route::post('/events/set-password/{eventId}', [EventController::class, 'setEventPassword']);
+    Route::delete('/events/delete-multiple', [EventController::class, 'deleteMultipleEvents']);
 });
 
 

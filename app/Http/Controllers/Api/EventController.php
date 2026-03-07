@@ -116,6 +116,34 @@ class EventController extends Controller
         return $this->successResponse(null, 'Event deleted successfully', 200);
     }
 
+    public function deleteMultipleEvents(Request $request)
+    {
+        // 1. Validation
+        $request->validate([
+            'event_ids' => 'required|array',
+            'event_ids.*' => 'exists:events,id',
+        ]);
+
+        try {
+            // 2. Fetching (FIXED: Used whereIn instead of where)
+            $events = Event::whereIn('id', $request->event_ids)
+                ->where('user_id', Auth::id())
+                ->get();
+
+            // 3. Check if empty (FIXED: Collections are never strictly "false")
+            if ($events->isEmpty()) {
+                return $this->errorResponse('Events not found or you are not authorized to delete them.', 404);
+            }
+
+            // 4. Execution
+            $events->each->delete();
+        } catch (\Exception $e) {
+            return $this->errorResponse($e->getMessage(), 500);
+        }
+
+        return $this->successResponse(null, 'Events deleted successfully', 200);
+    }
+
     public function UploadContent(Request $request)
     {
         $request->validate([
