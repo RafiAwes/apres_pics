@@ -1,0 +1,15 @@
+--- Fetching Random Event for Test ---
+Event ID: 4
+Event Slug: 51ZnAlcTR5
+
+--- Testing lookup by ID via findByIdOrSlug ---
+SUCCESS: Found event by ID
+
+--- Testing lookup by Slug via findByIdOrSlug ---
+SUCCESS: Found event by Slug
+
+--- Testing Route Model Binding (Simulated) ---
+SUCCESS: Route Binding resolved by ID
+SUCCESS: Route Binding resolved by Slug
+
+--- Verification Complete ---

@@ -24,8 +24,39 @@ class Event extends Model
         parent::boot();
 
         static::creating(function ($event) {
-            $event->slug = \Illuminate\Support\Str::random(10);
+            $event->slug = self::generateSlug();
         });
+    }
+
+    /**
+     * Generate a 10-character random slug that always starts with an alphabetical character.
+     */
+    public static function generateSlug()
+    {
+        $firstChar = chr(rand(97, 122)); // Random lowercase letter a-z
+        $rest = \Illuminate\Support\Str::random(9);
+        return $firstChar . $rest;
+    }
+
+    /**
+     * Resolve the route binding for a given value.
+     * Support lookup by numeric ID or alphanumeric Slug.
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return $this->where('id', $value)
+            ->orWhere('slug', $value)
+            ->first();
+    }
+
+    /**
+     * Static helper to find an event by ID or Slug.
+     */
+    public static function findByIdOrSlug($identifier)
+    {
+        return static::where('id', $identifier)
+            ->orWhere('slug', $identifier)
+            ->first();
     }
 
     protected $casts = [

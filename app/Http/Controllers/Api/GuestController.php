@@ -28,16 +28,21 @@ class GuestController extends Controller
         $request->validate([
             'emails' => 'required|array',
             'emails.*' => 'email',
-            'event_id' => 'required|exists:events,id',
+            'event_id' => 'required', // Could be ID or Slug
             'link' => 'required|string',
         ]);
 
         try {
-            $eventId = $request->event_id;
+            $identifier = $request->event_id;
             $link = $request->link;
             $emails = $request->emails;
 
-            $event = \App\Models\Event::findOrFail($eventId);
+            $event = \App\Models\Event::findByIdOrSlug($identifier);
+            if (!$event) {
+                return $this->errorResponse('Event not found.', 404);
+            }
+            $eventId = $event->id;
+
             if ($event->user_id !== Auth::id()) {
                 return $this->errorResponse('You are not authorized to invite guests to this event.', 403);
             }

@@ -3,9 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\{Auth, Hash};
-use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\Controller;
 use App\Traits\{ApiResponseTraits, ImageTrait};
 
@@ -28,9 +26,9 @@ class ProfileController extends Controller
         try {
             // 2. Smart Update: Only update fields present in the request
             // $request->filled('key') returns true only if key is present AND not empty/null
-            if($user->role === 'admin'){
+            if ($user->role === 'admin') {
                 if ($request->filled('name')) {
-                $user->name = $request->name;
+                    $user->name = $request->name;
                 }
 
                 if ($request->filled('contact_number')) {
@@ -40,8 +38,7 @@ class ProfileController extends Controller
                 if ($request->filled('address')) {
                     $user->address = $request->address;
                 }
-            }
-            else{
+            } else {
                 if ($request->filled('name')) {
                     $user->name = $request->name;
                 }
@@ -49,19 +46,19 @@ class ProfileController extends Controller
 
             $user->save();
 
-        return $this->successResponse($user, 'Profile info updated successfully', 200);
+            return $this->successResponse($user, 'Profile info updated successfully', 200);
         } catch (\Exception $e) {
-            return $this->errorResponse('Failed to update profile info', 500, $e->getMessage() .' '. $e->getLine());
+            return $this->errorResponse('Failed to update profile info', 500, $e->getMessage() . ' ' . $e->getLine());
         }
     }
 
     public function updateAvatar(Request $request)
     {
         $user = Auth::user();
-        
+
         // 1. Validation
         $rules = [
-            'avatar' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048', // max 2MB
+            'avatar' => 'required|image|mimes:jpeg,png,jpg,gif|max:12288', // max 12MB
         ];
 
         $request->validate($rules);
@@ -78,10 +75,9 @@ class ProfileController extends Controller
             // 4. Update user record
             $user->update(['avatar' => $imagePath]);
 
-            return $this->successResponse($user,'Avatar updated successfully.', 200);
-
+            return $this->successResponse($user, 'Avatar updated successfully.', 200);
         } catch (\Exception $e) {
-            return $this->errorResponse('Failed to update avatar', 500, $e->getMessage() .' '. $e->getLine());  
+            return $this->errorResponse('Failed to update avatar', 500, $e->getMessage() . ' ' . $e->getLine());
         }
     }
 }

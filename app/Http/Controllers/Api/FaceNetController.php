@@ -1,9 +1,10 @@
 <?php
+
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Services\FaceNetService; 
+use App\Services\FaceNetService;
 use App\Traits\ApiResponseTraits;
 use Illuminate\Support\Facades\Storage;
 
@@ -22,12 +23,16 @@ class FaceNetController extends Controller
     {
         // 1. Validation
         $request->validate([
-            'selfie'   => 'required|file|mimetypes:image/*|max:5120', // 5MB limit
-            'event_id' => 'required|exists:events,id',
+            'selfie'   => 'required|file|mimetypes:image/*|max:12288', // 12MB limit
+            'event_id' => 'required', // Could be ID or Slug
         ]);
-        
-        $eventId = $request->event_id;
-        
+
+        $event = \App\Models\Event::findByIdOrSlug($request->event_id);
+        if (!$event) {
+            return $this->errorResponse('Event not found.', 404);
+        }
+        $eventId = $event->id;
+
         try {
             // 2. Save Selfie Temporarily
             // We need a physical file for Python to read
@@ -37,7 +42,7 @@ class FaceNetController extends Controller
             // 3. Run the AI Search
             // This might take 2-4 seconds depending on CPU
             $result = $this->faceNet->run('search', $eventId, $absPath);
-            
+
             // 4. Cleanup (Delete the temp selfie)
             Storage::disk('public')->delete($path);
 
@@ -45,7 +50,7 @@ class FaceNetController extends Controller
             if (isset($result['error'])) {
                 // If "No face detected", we return 400 so the frontend knows to ask for a better photo
                 if (str_contains($result['error'], 'No face detected')) {
-                     return $this->errorResponse("Could not detect a face. Please try a clearer selfie.", 400);
+                    return $this->errorResponse("Could not detect a face. Please try a clearer selfie.", 400);
                 }
                 return $this->errorResponse($result['error'], 500);
             }
@@ -53,13 +58,12 @@ class FaceNetController extends Controller
             // 6. Format the Results
             // Python gives us filenames: ["photo1.jpg", "photo2.jpg"]
             // We convert them to full URLs: ["http://.../photo1.jpg", ...]
-            $matches = collect($result['matches'] ?? [])->map(function($filename) use ($eventId) {
+            $matches = collect($result['matches'] ?? [])->map(function ($filename) use ($eventId) {
                 // Images are stored under storage/events/{eventId}
                 return asset("storage/events/{$eventId}/{$filename}");
             });
 
             return $this->successResponse($matches, "Found " . count($matches) . " photos of you.", 200);
-
         } catch (\Exception $e) {
             return $this->errorResponse($e->getMessage(), 500);
         }

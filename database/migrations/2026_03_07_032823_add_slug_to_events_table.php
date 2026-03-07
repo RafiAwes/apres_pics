@@ -17,7 +17,7 @@ return new class extends Migration
 
         // Populate existing data
         \App\Models\Event::all()->each(function ($event) {
-            $event->slug = \Illuminate\Support\Str::random(10);
+            $event->slug = \App\Models\Event::generateSlug();
             $event->save();
         });
 

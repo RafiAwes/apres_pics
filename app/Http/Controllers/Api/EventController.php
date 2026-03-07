@@ -65,11 +65,9 @@ class EventController extends Controller
 
         try {
 
-            $event = Event::where('id', $id)
-                ->where('user_id', Auth::id())
-                ->first();
+            $event = Event::findByIdOrSlug($id);
 
-            if (! $event) {
+            if (! $event || $event->user_id !== Auth::id()) {
                 return $this->errorResponse('Event not found or you are not authorized to edit it.', 404);
             }
 
@@ -100,11 +98,9 @@ class EventController extends Controller
     public function deleteEvent($id)
     {
         try {
-            $event = Event::where('id', $id)
-                ->where('user_id', Auth::id())
-                ->first();
+            $event = Event::findByIdOrSlug($id);
 
-            if (! $event) {
+            if (! $event || $event->user_id !== Auth::id()) {
                 return $this->errorResponse('Event not found or you are not authorized to delete it.', 404);
             }
 
@@ -147,18 +143,16 @@ class EventController extends Controller
     public function UploadContent(Request $request)
     {
         $request->validate([
-            'event_id' => 'required|exists:events,id',
+            'event_id' => 'required', // Could be ID or Slug
             'images' => 'required|array',
-            'images.*' => 'file|mimetypes:image/*|max:2048',
+            'images.*' => 'file|mimetypes:image/*|max:12288',
         ]);
 
         try {
 
-            $event = Event::where('id', $request->event_id)
-                ->where('user_id', Auth::id())
-                ->first();
+            $event = Event::findByIdOrSlug($request->event_id);
 
-            if (! $event) {
+            if (! $event || $event->user_id !== Auth::id()) {
                 return $this->errorResponse('Event not found or you are not authorized to upload content to it.', 404);
             }
 
@@ -264,11 +258,9 @@ class EventController extends Controller
         ]);
 
         try {
-            $event = Event::where('id', $eventId)
-                ->where('user_id', Auth::id())
-                ->first();
+            $event = Event::findByIdOrSlug($eventId);
 
-            if (! $event) {
+            if (! $event || $event->user_id !== Auth::id()) {
                 return $this->errorResponse('Event not found or you are not authorized to edit it.', 404);
             }
 
@@ -284,11 +276,9 @@ class EventController extends Controller
     public function eventDetails($id)
     {
         try {
-            $event = Event::where('id', $id)
-                ->where('user_id', Auth::id())
-                ->first();
+            $event = Event::findByIdOrSlug($id);
 
-            if (!$event) {
+            if (!$event || $event->user_id !== Auth::id()) {
                 return $this->errorResponse('Event not found or you are not authorized to view it.', 404);
             }
 
@@ -301,7 +291,7 @@ class EventController extends Controller
     public function editContent(Request $request, $id)
     {
         $request->validate([
-            'image' => 'required|file|mimetypes:image/*|max:2048',
+            'image' => 'required|file|mimetypes:image/*|max:12288',
         ]);
 
         try {
@@ -343,11 +333,9 @@ class EventController extends Controller
     public function eventGuestList($eventId)
     {
         try {
-            $event = Event::where('id', $eventId)
-                ->where('user_id', Auth::id())
-                ->first();
+            $event = Event::findByIdOrSlug($eventId);
 
-            if (!$event) {
+            if (!$event || $event->user_id !== Auth::id()) {
                 return $this->errorResponse('Event not found or you are not authorized to view its guests.', 404);
             }
 
