@@ -60,7 +60,6 @@ class Event extends Model
     }
 
     protected $casts = [
-        'date' => 'datetime',
         'is_active' => 'boolean',
     ];
 
@@ -68,6 +67,7 @@ class Event extends Model
     {
         return Attribute::make(
             get: fn($value) => $value ? \Carbon\Carbon::parse($value)->format('F j, Y') : null,
+            set: fn($value) => $value ? \Carbon\Carbon::parse($value)->format('Y-m-d') : null,
         );
     }
 

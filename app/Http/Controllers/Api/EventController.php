@@ -40,13 +40,13 @@ class EventController extends Controller
         ]);
 
         try {
-            $event = new Event;
-            $event->user_id = Auth::id();
-            $event->name = $request->name;
-            $event->date = $request->date;
-            $event->address = $request->address;
-            $event->is_active = true;
-            $event->save();
+            $event = Event::create([
+                'user_id' => Auth::id(),
+                'name' => $request->name,
+                'date' => $request->date,
+                'address' => $request->address,
+                'is_active' => true,
+            ]);
         } catch (\Exception $e) {
             return $this->errorResponse($e->getMessage(), 500);
         }
@@ -71,23 +71,25 @@ class EventController extends Controller
                 return $this->errorResponse('Event not found or you are not authorized to edit it.', 404);
             }
 
+            $updateData = [];
+            
             if ($request->filled('name')) {
-                $event->name = $request->name;
+                $updateData['name'] = $request->name;
             }
 
             if ($request->filled('date')) {
-                $event->date = $request->date;
+                $updateData['date'] = $request->date;
             }
 
             if ($request->filled('address')) {
-                $event->address = $request->address;
+                $updateData['address'] = $request->address;
             }
 
             if ($request->has('is_active')) {
-                $event->is_active = $request->is_active;
+                $updateData['is_active'] = $request->is_active;
             }
 
-            $event->save();
+            $event->update($updateData);
         } catch (\Exception $e) {
             return $this->errorResponse($e->getMessage(), 500);
         }
