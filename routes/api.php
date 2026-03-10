@@ -31,6 +31,7 @@ Route::group(['middleware' => ['auth:api']], function () {
         Route::post('/update-avatar', 'updateAvatar');
         Route::post('/update-password', 'updatePassword');
         Route::post('/update-user-name', 'updateUserName');
+        Route::get('/get-profile', 'getProfile');
     });
 
     Route::post('/payment/create', [SubscriptionController::class, 'createPayment']);
