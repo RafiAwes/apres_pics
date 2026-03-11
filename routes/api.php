@@ -53,7 +53,13 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth:api', 'role:admin']], 
     });
     Route::group(['controller' => AdminController::class], function () {
         Route::get('/dashboard-stats', 'dashboardStats');
+        Route::get('/subscriptions', 'subscriptionList');
+        Route::get('/revenue/total', 'totalRevenue');
+        Route::get('/revenue/weekly', 'currentWeeklyRevenue');
+        Route::get('/revenue/monthly', 'currentMonthlyRevenue');
     });
+    Route::get('/events', [EventController::class, 'events']);
+    Route::get('/events/details/{id}', [EventController::class, 'eventDetails']);
 });
 
 Route::group(['prefix' => 'users', 'middleware' => ['auth:api', 'role:user']], function () {

@@ -25,8 +25,14 @@ class EventController extends Controller
 
     public function events(Request $request)
     {
+        $search = $request->search ?? '';
         $per_page = $request->per_page ?? 10;
-        $events = Event::where('user_id', Auth::id())->paginate($per_page);
+        $user = Auth::user();
+        if( $user->role == 'user'){
+            $events = Event::where('user_id', $user->id)->where('name', 'LIKE', '%'.$search.'%')->paginate($per_page);
+        }else{
+            $events = Event::where('name', 'LIKE', '%'.$search.'%')->paginate($per_page);
+        }
 
         return $this->successResponse($events, 'Events fetched successfully', 200);
     }
@@ -66,8 +72,9 @@ class EventController extends Controller
         try {
 
             $event = Event::findByIdOrSlug($id);
+            $user = Auth::user();
 
-            if (! $event || $event->user_id !== Auth::id()) {
+            if (! $event || ($user->role == 'user' && $event->user_id !== Auth::id())) {
                 return $this->errorResponse('Event not found or you are not authorized to edit it.', 404);
             }
 
@@ -101,8 +108,9 @@ class EventController extends Controller
     {
         try {
             $event = Event::findByIdOrSlug($id);
+            $user = Auth::user();
 
-            if (! $event || $event->user_id !== Auth::id()) {
+            if (! $event || ($user->role == 'user' && $event->user_id !== Auth::id())) {
                 return $this->errorResponse('Event not found or you are not authorized to delete it.', 404);
             }
 
@@ -123,9 +131,12 @@ class EventController extends Controller
         ]);
 
         try {
+            $user = Auth::user();
             // 2. Fetching (FIXED: Used whereIn instead of where)
             $events = Event::whereIn('id', $request->event_ids)
-                ->where('user_id', Auth::id())
+                ->when($user->role == 'user', function($query) {
+                    return $query->where('user_id', Auth::id());
+                })
                 ->get();
 
             // 3. Check if empty (FIXED: Collections are never strictly "false")
@@ -153,8 +164,9 @@ class EventController extends Controller
         try {
 
             $event = Event::findByIdOrSlug($request->event_id);
+            $user = Auth::user();
 
-            if (! $event || $event->user_id !== Auth::id()) {
+            if (! $event || ($user->role == 'user' && $event->user_id !== Auth::id())) {
                 return $this->errorResponse('Event not found or you are not authorized to upload content to it.', 404);
             }
 
@@ -204,8 +216,11 @@ class EventController extends Controller
                 return $this->errorResponse('Content not found.', 404);
             }
 
+            $user = Auth::user();
             $event = Event::where('id', $content->event_id)
-                ->where('user_id', Auth::id())
+                ->when($user->role == 'user', function($query) {
+                    return $query->where('user_id', Auth::id());
+                })
                 ->first();
 
             if (! $event) {
@@ -231,10 +246,16 @@ class EventController extends Controller
                 return $this->errorResponse('Event not found.', 404);
             }
 
-            // 2. Fetch the contents manually
+            $user = Auth::user();
+            // 2. Check authorization (users can only view their own event contents, admins can view all)
+            if ($user->role == 'user' && $event->user_id !== Auth::id()) {
+                return $this->errorResponse('You are not authorized to view this event\'s contents.', 403);
+            }
+
+            // 3. Fetch the contents manually
             $contents = EventContents::where('event_id', $event->id)->get();
 
-            // 3. Structure the data: Event Details first, then Contents
+            // 4. Structure the data: Event Details first, then Contents
             $data = [
                 'event_details' => $event, // This contains id, name, date, etc.
                 'contents_list' => $contents,
@@ -261,8 +282,9 @@ class EventController extends Controller
 
         try {
             $event = Event::findByIdOrSlug($eventId);
+            $user = Auth::user();
 
-            if (! $event || $event->user_id !== Auth::id()) {
+            if (! $event || ($user->role == 'user' && $event->user_id !== Auth::id())) {
                 return $this->errorResponse('Event not found or you are not authorized to edit it.', 404);
             }
 
@@ -279,10 +301,12 @@ class EventController extends Controller
     {
         try {
             $event = Event::findByIdOrSlug($id);
+            $user = Auth::user();
 
-            if (!$event || $event->user_id !== Auth::id()) {
+            if (!$event || ($user->role == 'user' && $event->user_id !== Auth::id())) {
                 return $this->errorResponse('Event not found or you are not authorized to view it.', 404);
             }
+
 
             return $this->successResponse($event, 'Event details fetched successfully', 200);
         } catch (\Exception $e) {
@@ -298,8 +322,11 @@ class EventController extends Controller
 
         try {
             $content = EventContents::findOrFail($id);
+            $user = Auth::user();
             $event = Event::where('id', $content->event_id)
-                ->where('user_id', Auth::id())
+                ->when($user->role == 'user', function($query) {
+                    return $query->where('user_id', Auth::id());
+                })
                 ->first();
 
             if (!$event) {
@@ -336,8 +363,9 @@ class EventController extends Controller
     {
         try {
             $event = Event::findByIdOrSlug($eventId);
+            $user = Auth::user();
 
-            if (!$event || $event->user_id !== Auth::id()) {
+            if (!$event || ($user->role == 'user' && $event->user_id !== Auth::id())) {
                 return $this->errorResponse('Event not found or you are not authorized to view its guests.', 404);
             }
 

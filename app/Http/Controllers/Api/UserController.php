@@ -14,22 +14,47 @@ class UserController extends Controller
         $perPage = $request->query('per_page', 15);
         $search = $request->query('search', '');
 
-        $query = User::where('role', 'user')->where('ban_type',null)
-            ->select('id', 'name', 'email', 'avatar');
+        $query = User::where('role', 'user')
+            ->select('id', 'name', 'email', 'avatar', 'created_at', 'ban_type', 'ban_expires_at', 'ban_reason');
 
         if ($search) {
-            $query->where('name', 'LIKE', '%'.$search.'%')
-                ->orWhere('email', 'LIKE', '%'.$search.'%');
+            $query->where(function ($searchQuery) use ($search) {
+                $searchQuery->where('name', 'LIKE', '%'.$search.'%')
+                    ->orWhere('email', 'LIKE', '%'.$search.'%');
+            });
         }
 
         $usersPaginator = $query->paginate($perPage);
 
         $users = $usersPaginator->through(function ($user) {
+            $isPermanentBan = $user->ban_type === 'permanently';
+            $banExpiresAt = $user->getRawOriginal('ban_expires_at')
+                ? Carbon::parse($user->getRawOriginal('ban_expires_at'))
+                : null;
+            $createdAt = $user->getRawOriginal('created_at')
+                ? Carbon::parse($user->getRawOriginal('created_at'))
+                : null;
+
+            $banData = $user->ban_type ? [
+                'type' => $user->ban_type,
+                'reason' => $user->ban_reason,
+                'expires_at' => $isPermanentBan ? 'Permanent' : optional($banExpiresAt)->toDateTimeString(),
+                'expires_date' => $isPermanentBan ? 'Permanent' : optional($banExpiresAt)->format('jS F, Y'),
+                'expires_time' => $isPermanentBan ? 'Permanent' : optional($banExpiresAt)->format('h:i A'),
+            ] : null;
+
             return [
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
                 'avatar' => $user->avatar,
+                'is_banned' => $user->ban_type !== null,
+                'ban_type' => $user->ban_type,
+                'ban_reason' => $user->ban_reason,
+                'ban_expires_at' => $isPermanentBan ? 'Permanent' : optional($banExpiresAt)->toDateTimeString(),
+                'ban_data' => $banData,
+                'created_at' => optional($createdAt)->format('jS F, Y'),
+                'created_time' => optional($createdAt)->format('h:i A'),
             ];
         });
 
