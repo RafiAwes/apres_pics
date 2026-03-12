@@ -62,6 +62,7 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth:api', 'role:admin']], 
         Route::get('/revenue/weekly', 'currentWeeklyRevenue');
         Route::get('/revenue/monthly', 'currentMonthlyRevenue');
     });
+    Route::post('/update-profile', [ProfileController::class, 'updateAdminProfile']);
     Route::get('/events', [EventController::class, 'events']);
     Route::get('/events/details/{id}', [EventController::class, 'eventDetails']);
     Route::delete('/events/delete/{id}', [EventController::class, 'deleteEvent']);

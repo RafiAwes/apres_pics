@@ -59,6 +59,26 @@ class ProfileController extends Controller
     }
 
 
+    public function updateAdminProfile(Request $request)
+    {
+        $user = Auth::user();
+
+        $request->validate([
+            'name'           => 'sometimes|string|max:255',
+            'contact_number' => 'sometimes|string|max:20',
+            'address'        => 'sometimes|string|max:255',
+        ]);
+
+        try {
+            $user->update($request->only(['name', 'contact_number', 'address']));
+
+            $profile = $user->only(['id', 'name', 'email', 'avatar', 'contact_number', 'address']);
+            return $this->successResponse($profile, 'Admin profile updated successfully.', 200);
+        } catch (\Exception $e) {
+            return $this->errorResponse('Failed to update admin profile', 500, $e->getMessage() . ' ' . $e->getLine());
+        }
+    }
+
     public function updateAvatar(Request $request)
     {
         $user = Auth::user();
