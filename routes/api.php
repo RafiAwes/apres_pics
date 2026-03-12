@@ -64,9 +64,10 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth:api', 'role:admin']], 
     });
     Route::get('/events', [EventController::class, 'events']);
     Route::get('/events/details/{id}', [EventController::class, 'eventDetails']);
+    Route::delete('/events/delete/{id}', [EventController::class, 'deleteEvent']);
 });
 
-Route::group(['prefix' => 'users', 'middleware' => ['auth:api', 'role:user']], function () {
+Route::group(['prefix' => 'users', 'middleware' => ['auth:api', 'role:user|admin']], function () {
     Route::get('/events', [EventController::class, 'events']);
     Route::post('/events', [EventController::class, 'createEvent']);
     Route::post('/events/update/{id}', [EventController::class, 'updateEvent']);

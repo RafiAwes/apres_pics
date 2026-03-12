@@ -7,6 +7,8 @@ namespace App\Models;
 use Laravel\Cashier\Billable;
 use App\Traits\ApiResponseTraits;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Notifications\Notifiable;
 use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -115,11 +117,29 @@ class User extends Authenticatable implements JWTSubject
 
     public function getAvatarAttribute($value)
     {
-        if ($value) {
-            return url($value);
-        } else {
+        if (! $value) {
             return url('images/user/default.jpg');
         }
+
+        if (filter_var($value, FILTER_VALIDATE_URL)) {
+            return $value;
+        }
+
+        $relativePath = ltrim($value, '/');
+
+        if (str_starts_with($relativePath, 'storage/')) {
+            return url($relativePath);
+        }
+
+        if (File::exists(public_path($relativePath))) {
+            return url($relativePath);
+        }
+
+        if (Storage::disk('public')->exists($relativePath)) {
+            return url('storage/'.$relativePath);
+        }
+
+        return url($relativePath);
     }
 
     public function subscription()

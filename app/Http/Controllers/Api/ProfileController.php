@@ -75,8 +75,9 @@ class ProfileController extends Controller
             $imagePath = $this->uploadAvatar($request, 'avatar', 'images/user');
 
             // 3. Delete old avatar if exists
-            if ($user->avatar) {
-                $this->deleteImage($user->avatar);
+            $currentAvatarPath = $user->getRawOriginal('avatar');
+            if ($currentAvatarPath) {
+                $this->deleteImage($currentAvatarPath);
             }
 
             // 4. Update user record
