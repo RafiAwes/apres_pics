@@ -72,7 +72,7 @@ class Event extends Model
     }
 
     // Relationship: Who created the event
-    public function creator()
+    public function user()
     {
         return $this->belongsTo(User::class, 'user_id');
     }

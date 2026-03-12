@@ -29,9 +29,13 @@ class EventController extends Controller
         $per_page = $request->per_page ?? 10;
         $user = Auth::user();
         if( $user->role == 'user'){
-            $events = Event::where('user_id', $user->id)->where('name', 'LIKE', '%'.$search.'%')->paginate($per_page);
-        }else{
-            $events = Event::where('name', 'LIKE', '%'.$search.'%')->paginate($per_page);
+            $events = Event::where('user_id', $user->id)->where('name', 'LIKE', '%'.$search.'%')->with('user')->paginate($per_page);
+        }elseif($user->role == 'admin'){
+            $events = Event::where('name', 'LIKE', '%'.$search.'%')->with('user')->paginate($per_page);
+        }
+        
+        else{
+            $events = Event::where('name', 'LIKE', '%'.$search.'%')->with('user')->paginate($per_page);
         }
 
         return $this->successResponse($events, 'Events fetched successfully', 200);
@@ -177,9 +181,7 @@ class EventController extends Controller
                 foreach ($request->file('images') as $imageFile) {
 
                     // Upload Image
-                    $tempRequest = new Request;
-                    $tempRequest->files->set('image', $imageFile);
-                    $imagePath = $this->uploadImage($tempRequest, 'image', "events/{$event->id}");
+                    $imagePath = $this->handleImageUpload($imageFile, $event->id);
 
                     // Create DB Record
                     $content = EventContents::create([
@@ -348,6 +350,13 @@ class EventController extends Controller
         } catch (\Exception $e) {
             return $this->errorResponse($e->getMessage(), 500);
         }
+    }
+
+    private function handleImageUpload($imageFile, $eventId)
+    {
+        $tempRequest = request();
+        $tempRequest->files->set('image', $imageFile);
+        return $this->uploadImage($tempRequest, 'image', "events/{$eventId}");
     }
 
     private function updateTotalImages($eventId)

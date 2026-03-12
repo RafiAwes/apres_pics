@@ -32,6 +32,10 @@ Route::group(['middleware' => ['auth:api']], function () {
         Route::post('/update-password', 'updatePassword');
         Route::post('/update-user-name', 'updateUserName');
         Route::get('/get-profile', 'getProfile');
+
+        //EVENT ACTIVITIES FOR BOTH ADMIN AND USER
+        Route::get('users/events/contents/{event}', [EventController::class, 'eventContents']); //both admin and user can use it.
+        Route::delete('/events/delete/{id}', [EventController::class, 'deleteEvent']);
     });
 
     Route::post('/payment/create', [SubscriptionController::class, 'createPayment']);
@@ -66,10 +70,10 @@ Route::group(['prefix' => 'users', 'middleware' => ['auth:api', 'role:user']], f
     Route::get('/events', [EventController::class, 'events']);
     Route::post('/events', [EventController::class, 'createEvent']);
     Route::post('/events/update/{id}', [EventController::class, 'updateEvent']);
-    Route::delete('/events/delete/{id}', [EventController::class, 'deleteEvent']);
+    
     Route::post('/events/content', [EventController::class, 'UploadContent']);
     Route::delete('/events/content/{id}', [EventController::class, 'deleteContent']);
-    Route::get('/events/contents/{event}', [EventController::class, 'eventContents']);
+    // Route::get('/events/contents/{event}', [EventController::class, 'eventContents']);
     Route::get('/events/generate-password', [EventController::class, 'generateEventPassword']);
     Route::get('/events/details/{id}', [EventController::class, 'eventDetails']);
     Route::post('/events/content/update/{id}', [EventController::class, 'editContent']);
