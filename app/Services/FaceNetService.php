@@ -28,6 +28,7 @@ class FaceNetService
         $output = shell_exec($cmd);
         $decoded = json_decode($output, true);
 
+        //sometime AI returns garbage data where json_decode fails. To eliminate that we use this part of code
         if (!$decoded) {
             $decoded = $this->extractJsonFromOutput($output);
         }

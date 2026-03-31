@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use App\Models\{Event, EventContents};
-use App\Jobs\IndexFaceJob;
+use Illuminate\Support\Facades\{Auth, Log, Storage};
 use App\Http\Controllers\Controller;
-use App\Traits\{ApiResponseTraits, ImageTrait};
+use App\Jobs\IndexFaceJob;
+use App\Models\{Event, EventContents};
 use App\Services\{EventService, FaceNetService};
+use App\Traits\{ApiResponseTraits, ImageTrait};
 
 class EventController extends Controller
 {
@@ -116,6 +116,18 @@ class EventController extends Controller
 
             if (! $event || ($user->role == 'user' && $event->user_id !== Auth::id())) {
                 return $this->errorResponse('Event not found or you are not authorized to delete it.', 404);
+            }
+            // Remove FaceNet DB for this event (if present)
+            $faceDb = storage_path("app/public/events/{$event->id}/facenet_db.json");
+            if (file_exists($faceDb)) {
+                try { unlink($faceDb); } catch (\Throwable $e) { Log::error('Failed to delete facenet DB: '.$e->getMessage()); }
+            }
+
+            // Remove public storage folder for the event (images + facenet DB)
+            try {
+                Storage::disk('public')->deleteDirectory("events/{$event->id}");
+            } catch (\Throwable $e) {
+                Log::error('Failed to delete public event directory: '.$e->getMessage());
             }
 
             $event->delete();
@@ -229,6 +241,16 @@ class EventController extends Controller
                 return $this->errorResponse('You are not authorized to delete this content.', 403);
             }
 
+            // Try to notify FaceNet to remove indexed embeddings for this image.
+            $absPath = $this->resolveAbsoluteImagePath($content->image);
+            if ($absPath) {
+                try {
+                    $this->faceNet->run('delete', $content->event_id, $absPath);
+                } catch (\Throwable $e) {
+                    Log::error('FaceNet delete failed: '.$e->getMessage());
+                }
+            }
+
             // Delete the image file
             $this->deleteImage($content->image);
 
@@ -336,7 +358,19 @@ class EventController extends Controller
             }
 
             if ($content->getRawOriginal('image')) {
-                $this->deleteImage($content->getRawOriginal('image'));
+                $oldImage = $content->getRawOriginal('image');
+
+                // Notify FaceNet to remove indexed embeddings for the old image
+                $oldAbs = $this->resolveAbsoluteImagePath($oldImage);
+                if ($oldAbs) {
+                    try {
+                        $this->faceNet->run('delete', $content->event_id, $oldAbs);
+                    } catch (\Throwable $e) {
+                        Log::error('FaceNet delete failed during editContent: '.$e->getMessage());
+                    }
+                }
+
+                $this->deleteImage($oldImage);
             }
             $imagePath = $this->uploadImage($request, 'image', "events/{$event->id}");
             $content->update(['image' => $imagePath]);
@@ -366,6 +400,35 @@ class EventController extends Controller
             $event->total_images = EventContents::where('event_id', $eventId)->count();
             $event->save();
         }
+    }
+
+    // Helper: resolve an absolute filesystem path for stored image references (storage disk or public URL)
+    private function resolveAbsoluteImagePath($imagePath)
+    {
+        if (! $imagePath) return null;
+
+        $relativePath = $imagePath;
+
+        if (filter_var($imagePath, FILTER_VALIDATE_URL)) {
+            $parsed = parse_url($imagePath, PHP_URL_PATH);
+            $relativePath = ltrim((string) $parsed, '/');
+        } else {
+            $relativePath = ltrim($imagePath, '/');
+        }
+
+        if (str_starts_with($relativePath, 'storage/')) {
+            $storageRelativePath = substr($relativePath, strlen('storage/'));
+            if (Storage::disk('public')->exists($storageRelativePath)) {
+                return Storage::disk('public')->path($storageRelativePath);
+            }
+        }
+
+        if (Storage::disk('public')->exists($relativePath)) {
+            return Storage::disk('public')->path($relativePath);
+        }
+
+        $fullPath = public_path($relativePath);
+        return \Illuminate\Support\Facades\File::exists($fullPath) ? $fullPath : null;
     }
 
     public function eventGuestList($eventId)

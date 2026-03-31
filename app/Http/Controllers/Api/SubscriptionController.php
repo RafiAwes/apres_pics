@@ -2,14 +2,13 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\{Auth, DB, Log, Validator};
-use Stripe\{Stripe, Customer, Subscription, PaymentMethod, PaymentIntent};
-use App\Models\{Package, Transaction, User, Subscription as LocalSubscription};
-use Stripe\Checkout\Session;
-
+use App\Http\Controllers\Controller;
+use App\Models\{Package, Subscription as LocalSubscription, Transaction, User};
 use App\Traits\ApiResponseTraits;
+use Stripe\{Customer, PaymentIntent, PaymentMethod, Stripe, Subscription};
+use Stripe\Checkout\Session;
 
 class SubscriptionController extends Controller
 {

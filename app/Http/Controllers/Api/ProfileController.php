@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\{Auth, Hash};
 use App\Http\Controllers\Controller;
 use App\Traits\{ApiResponseTraits, ImageTrait};
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 
 class ProfileController extends Controller
 {
@@ -15,6 +14,11 @@ class ProfileController extends Controller
     public function getProfile()
     {
         $user = Auth::user();
+
+        if ($user->role === 'admin') {
+            $profile = $user->only(['id', 'name', 'email', 'avatar', 'contact_number', 'address']);
+            return $this->successResponse($profile, 'Admin profile fetched successfully.', 200);
+        }
         $profile = $user->only(['id', 'name', 'email', 'avatar']);
         return $this->successResponse($profile, 'User profile fetched successfully.', 200);
     }

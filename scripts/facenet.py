@@ -163,6 +163,32 @@ elif command == 'search':
 
     print(json.dumps({"matches": list(matches)}))
 
+elif command in ('delete', 'remove'):
+    if len(sys.argv) < 4:
+        print(json.dumps({"error": "Missing image path"}))
+        sys.exit(1)
+
+    img_path = sys.argv[3]
+    if not os.path.exists(DATABASE_FILE):
+        print(json.dumps({"status": "skipped", "message": "DB not found"}))
+        sys.exit(0)
+
+    try:
+        with open(DATABASE_FILE, 'r') as f:
+            db = json.load(f)
+    except:
+        db = []
+
+    original_len = len(db)
+    target_name = os.path.basename(img_path)
+    new_db = [rec for rec in db if rec.get('filename') != target_name]
+    removed = original_len - len(new_db)
+
+    with open(DATABASE_FILE, 'w') as f:
+        json.dump(new_db, f)
+
+    print(json.dumps({"status": "success", "removed": removed, "message": f"Removed {removed} records for {target_name}"}))
+
 else:
     print(json.dumps({"error": "Invalid command"}))
 
