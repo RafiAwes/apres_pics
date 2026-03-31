@@ -3,9 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Models\Event;
 use App\Services\FaceNetService;
 use App\Traits\ApiResponseTraits;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class FaceNetController extends Controller
@@ -27,7 +28,7 @@ class FaceNetController extends Controller
             'event_id' => 'required', // Could be ID or Slug
         ]);
 
-        $event = \App\Models\Event::findByIdOrSlug($request->event_id);
+        $event = Event::findByIdOrSlug($request->event_id);
         if (!$event) {
             return $this->errorResponse('Event not found.', 404);
         }
